@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\Администратор\\AppData\\Local\\Arduino15\\packages\\esp8266\\tools\\**",
+                "C:\\Users\\Администратор\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.7.3\\**",
+                "/Users/ameresp/Library/Arduino15/packages/esp8266/hardware/esp8266/2.7.0/**",
+                "/Users/ameresp/Library/Arduino15/packages/esp8266/tools/**"
+            ],
+            "forcedInclude": [],
+            "intelliSenseMode": "msvc-x64",
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2017/Community/VC/Tools/MSVC/14.16.27023/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        },
+        {
+            "name": "Mac",
+            "includePath": [
+                "/Users/ameresp/Library/Arduino15/packages/esp8266/tools/**",
+                "/Users/ameresp/Library/Arduino15/packages/esp8266/hardware/esp8266/2.7.0/**"
+            ],
+            "forcedInclude": []
+        }
+    ],
+    "version": 4
+}
