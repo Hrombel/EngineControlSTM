@@ -3,6 +3,10 @@
 
 #include <algorithm> // std::min
 
+#include "settings.h"
+#include "io.h"
+
+
 #ifndef STASSID
 #define STASSID "SevenEye"
 #define STAPSK  "DiTaKsA712892"
@@ -18,6 +22,8 @@
 
 #define EN_PIN 5
 #define TX_PIN 1
+#define STARTER_PIN 5
+#define IGNITION_PIN 6
 
 #define DATA_BUF_SIZE  1024 // bytes
 
@@ -31,6 +37,7 @@ const int port = 23;
 WiFiServer server(port);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
 
+bool initialized = false;
 char cmd = 0;
 int state;
 unsigned long timer;
@@ -48,14 +55,6 @@ typedef struct {
 } Command;
 
 const Command cmds[] = {
-  { 
-    { 0xC2, 0x33, 0xF1, 0x01, 0x05, 0xEC }, 13, // Температура охлаждающей жидкости
-    [](const uint8_t* response) { return response[6+5] - 40; } 
-  },
-  {
-    { 0xC2, 0x33, 0xF1, 0x01, 0x0F, 0xF6 }, 13, // Температура воздуха
-    [](const uint8_t* response) { return response[6+5] - 40; } 
-  },
   {
     { 0xC2, 0x33, 0xF1, 0x01, 0x0C, 0xF3 }, 14, // Обороты двигателя
     [](const uint8_t* response) {
@@ -66,26 +65,76 @@ const Command cmds[] = {
       return res / 4;
     }
   },
-  {
-    { 0xC2, 0x33, 0xF1, 0x01, 0x0D, 0xF4 }, 13, // Скорость
-    [](const uint8_t* response) { return (int)response[6+5]; }
-  }
+  // { 
+  //   { 0xC2, 0x33, 0xF1, 0x01, 0x05, 0xEC }, 13, // Температура охлаждающей жидкости
+  //   [](const uint8_t* response) { return response[6+5] - 40; } 
+  // },
+  // {
+  //   { 0xC2, 0x33, 0xF1, 0x01, 0x0F, 0xF6 }, 13, // Температура воздуха
+  //   [](const uint8_t* response) { return response[6+5] - 40; } 
+  // },
+  // {
+  //   { 0xC2, 0x33, 0xF1, 0x01, 0x0D, 0xF4 }, 13, // Скорость
+  //   [](const uint8_t* response) { return (int)response[6+5]; }
+  // }
 };
 
 const int cmdLen = sizeof(cmds[0].bytes);
 const int cmdsLen = sizeof(cmds) / sizeof(Command);
-const int sensorsLen = 100;
 
 uint8_t sendingCmd;
 uint8_t sendingByte;
 
-uint16_t sensors[sensorsLen][cmdsLen];
+uint16_t sensors[cmdsLen];
 int currentSensor;
 
-uint8_t processInit() {
+/**
+	const char* key
+	EngineEventHandler callback
+*/
+#define EngineStart(key, callback) EngineCmd(CMD_START_ENGINE, key, callback)
+
+bool StartEngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event) {
+  if(serverClients[0].available()) {
+    if (res == ENGINE_MESSAGE)
+      serverClients[0].printf("%d: ENGINE MESSAGE: %d\n", callId, event.msg);
+    else if (res == ENGINE_ERROR)
+      serverClients[0].printf("%d: ENGINE ERROR: %d\n", callId, event.err);
+  }
+
+	return false;
+}
+
+int GetTime() {
+	return millis();
+}
+
+bool KeyCompare(const char* key1, const char* key2, int len) {
+
+	char notOk = 0;
+	for (int i = 0; i < len; i++)
+		notOk |= key1[i] ^ key2[i];
+
+	return !notOk;
+}
+
+void SetIgnitionFlag(bool val) {
+	digitalWrite(IGNITION_PIN, val ? HIGH : LOW);
+}
+
+void SetStarterFlag(bool val) {
+	digitalWrite(STARTER_PIN, val ? HIGH : LOW);
+}
+
+int GetRPM() {
+	return sensors[0];
+}
+
+uint8_t ecuTick() {
     switch (state)
     {
     case 0:
+        serverClients[0].println("Initializing...");
         timer = millis();
         pinMode(TX_PIN, OUTPUT);
         digitalWrite(TX_PIN, HIGH);
@@ -133,10 +182,11 @@ uint8_t processInit() {
             timer = millis();
 
             if(responseBuf[5+3] == 0xC1) {
-              serverClients[0].println("INIT Success! Sending first command...");
+              serverClients[0].println("INIT Success! Starting command loop...");
             }
             else {
-              serverClients[0].println("INIT Failed! Sending first command...");
+              serverClients[0].println("INIT Failed! Aborting connection...");
+              return 1;
             }
             sendingCmd = 0;
             currentSensor = 0;
@@ -174,35 +224,16 @@ uint8_t processInit() {
         timer = millis();
 
         if(responseBufIndex == cmds[sendingCmd].responseLen) {
-          sensors[currentSensor][sendingCmd] = cmds[sendingCmd].convert(responseBuf);
+          sensors[sendingCmd] = cmds[sendingCmd].convert(responseBuf);
 
-          if(++sendingCmd == cmdsLen) {
+          if(++sendingCmd == cmdsLen)
             sendingCmd = 0;
-            if(++currentSensor == sensorsLen) {
-              state++;
-            }
-            else {
-              serverClients[0].printf("#%d ", currentSensor+1);
-              state = 6;
-            }
-          } 
-          else {
-            state = 6;
-          }
+
+          state = 6;
         }
         
       }
       break;
-    case 9:
-      serverClients[0].printf("All sensors are retreived %d times!\n", sensorsLen);
-      for(int i = 0; i < sensorsLen; i++) {
-        serverClients[0].printf("%d ", sensors[i][0]);
-      }
-      return 1;
-
-    
-    default:
-        break;
     }
 
     return 0;
@@ -212,6 +243,11 @@ void setup() {
   
   pinMode(EN_PIN, OUTPUT);
   digitalWrite(EN_PIN, HIGH);
+
+  digitalWrite(STARTER_PIN, LOW);
+  pinMode(STARTER_PIN, OUTPUT);
+  digitalWrite(IGNITION_PIN, LOW);
+  pinMode(IGNITION_PIN, OUTPUT);
 
   logger->begin(BAUD_LOGGER);
   logger->println("\n\nUsing Serial1 for logging");
@@ -278,8 +314,7 @@ void loop() {
     for (i = 0; i < MAX_SRV_CLIENTS; i++) {
       if (!serverClients[i]) { // equivalent to !serverClients[i].connected()
         serverClients[i] = server.available();
-        serverClients[i].println("List of commands:");
-        serverClients[i].println("s - to start listening for 10 seconds");
+        serverClients[i].println("List of commands:\n\ri - init bus\n\rs - start engine");
         break;
       }
     }
@@ -296,31 +331,31 @@ void loop() {
   }
 
 
-  for (int i = 0; i < MAX_SRV_CLIENTS; i++) {
-    while (serverClients[i].available()) {
-      cmd = serverClients[i].read();
-      switch (cmd)
-      {
-      case 'i':
-        serverClients[i].println("Initializing...");
-        state = 0;
-        timer = millis();
-        break;
-      
-      default:
-        serverClients[i].println("Unrecognized input");
-        break;
-      }
+  while (serverClients[0].available()) {
+    cmd = serverClients[0].read();
+    switch (cmd)
+    {
+    case 'i':
+      initialized = true;
+      state = 0;
+      timer = millis();
+      break;
+    case 's':
+      serverClients[0].println("Sending start command...");
+      EngineStart("password", StartEngineCallback);
+      break;
+    
+    default:
+      serverClients[0].println("Unrecognized input");
+      break;
     }
   }
 
-  if(cmd == 'i') {
-    auto status = processInit();
-    if(status > 0) {
-        cmd = 0;
-        
-    }
+  if(initialized) {
+    int res = ecuTick();
+    if(res != 0)
+      initialized = false;
   }
 
-  
+  EngineConnectorTick();
 }
