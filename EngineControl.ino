@@ -95,12 +95,10 @@ int currentSensor;
 #define EngineStart(key, callback) EngineCmd(CMD_START_ENGINE, key, callback)
 
 bool StartEngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event) {
-  if(serverClients[0].available()) {
-    if (res == ENGINE_MESSAGE)
-      serverClients[0].printf("%d: ENGINE MESSAGE: %d\n", callId, event.msg);
-    else if (res == ENGINE_ERROR)
-      serverClients[0].printf("%d: ENGINE ERROR: %d\n", callId, event.err);
-  }
+  if (res == ENGINE_MESSAGE)
+    serverClients[0].printf("%d: ENGINE MESSAGE: %d\n\r", callId, event.msg);
+  else if (res == ENGINE_ERROR)
+    serverClients[0].printf("%d: ENGINE ERROR: %d\n\r", callId, event.err);
 
 	return false;
 }
