@@ -22,8 +22,8 @@
 
 #define EN_PIN 5
 #define TX_PIN 1
-#define STARTER_PIN 5
-#define IGNITION_PIN 6
+#define STARTER_PIN 16
+#define IGNITION_PIN 14
 
 #define DATA_BUF_SIZE  1024 // bytes
 
