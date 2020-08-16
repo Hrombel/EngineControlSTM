@@ -30,7 +30,7 @@ static EngineMessage engineRes;
 static EngineError engineErr;
 
 HCMD EngineCmd(EngineCommand cmd, const char* key, const EngineEventHandler callback) {
-	EngineEvent e = { 0 };
+	EngineEvent e;
 
 	if (!KeyCompare(key, pkey, KEY_LENGTH)) {
 		callback(0, cmd, KEY_INCORRECT, e);

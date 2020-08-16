@@ -1,10 +1,3 @@
-/*
- * io.h
- *
- *  Created on: Dec 8, 2019
- *      Author: Администратор
- */
-
 #ifndef INC_IO_H_
 #define INC_IO_H_
 

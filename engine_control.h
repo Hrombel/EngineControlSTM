@@ -38,8 +38,8 @@ typedef enum EngineError {
 } EngineError;
 
 typedef union EngineEvent {
-	EngineMessage msg;
-	EngineError err;
+	char msg;
+	char err;
 } EngineEvent;
 
 void SetIgnitionFlag(bool);

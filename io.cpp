@@ -4,7 +4,6 @@
 #include "io.h"
 
 bool CmdCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event);
-void RequestReceive(REMOTE_ID sender, const void* data, int dataLen, char* keyBuf, RemoteConnection* subs);
 void ResponseSend(HCMD callId, EngineConnectorResult res, EngineEvent event);
 
 static RemoteConnection subs[MAX_CONNECTIONS + 1] = { 0 };
@@ -54,35 +53,6 @@ bool CmdCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, Engi
 
 	ResponseSend(callId, res, event);
 	return true;
-}
-
-void RequestReceive(REMOTE_ID sender, const void* data, int dataLen, char* keyBuf, RemoteConnection* subs) {
-
-	EngineEvent e = { 0 };
-	RemoteConnection sub = { sender, 0 };
-	subs[++freeSubIndex] = sub;// Заранее резеривруем место в массиве. Ошибка может вернуться перед возвратом из EngineCmd.
-
-	if (!dataLen) {
-		// Пустой пакет
-		return;
-	}
-    char* charData = (char*)data;
-    EngineCommand cmd = *(charData++);
-	if (cmd < CMD_AUTH_MAX) {
-		memset(keyBuf, 0, sizeof(char) * KEY_LENGTH);
-		if (!scanf_s("%s", keyBuf, KEY_LENGTH)) {
-			// Ошибка чтения ключа
-			ResponseSend(0, KEY_INCORRECT, e);
-			return;
-		}
-	}
-	
-	HCMD callId = EngineCmd(cmd, keyBuf, CmdCallback);
-
-	if (callId) {
-		sub.callId = callId;
-		subs[freeSubIndex] = sub;
-	}
 }
 
 void ResponseSend(HCMD callId, EngineConnectorResult res, EngineEvent event) {

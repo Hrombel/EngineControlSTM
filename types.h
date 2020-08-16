@@ -1,13 +1,7 @@
-/*
- * types.h
- *
- *  Created on: Dec 8, 2019
- */
-
 #ifndef INC_TYPES_H_
 #define INC_TYPES_H_
 
-typedef char bool;
+#define bool char
 #define true 1
 #define false 0
 
