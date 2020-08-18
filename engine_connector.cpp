@@ -17,11 +17,6 @@ int rpm = 0;
 
 static const char pkey[KEY_LENGTH] = PRIVATE_KEY;
 
-static bool ignition = false,
-starter = false,
-engine_start = false,
-engine_stop = false;
-
 static Subscriber subs[MAX_CONNECTIONS] = { 0 };
 static unsigned int freeSubIndex = 0;
 static unsigned int subId = 1;
