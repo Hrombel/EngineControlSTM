@@ -1,14 +1,16 @@
 #ifndef INC_ENGINE_CONTROL_H_
 #define INC_ENGINE_CONTROL_H_
 
-#include "types.h"
-
 typedef enum EngineMessage {
 	MESSAGE_NONE,
 	/* Двигатель запущен */
 	ENGINE_START_OK,
 	/* Двигатель остановлен */
 	ENGINE_STOP_OK,
+	/* Зажигание только что включено */
+	ENGINE_IGNITION_ON,
+	/* Зажигание только что выключено */
+	ENGINE_IGNITION_OFF,
 
 } EngineMessage;
 

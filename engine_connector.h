@@ -19,7 +19,7 @@ typedef enum EngineCommand {
 
 } EngineCommand;
 
-typedef enum EngineConnectorResult {
+typedef enum {
 
 	/* Пришло сообщение от подсистемы управления двигателем */
 	ENGINE_MESSAGE,
@@ -27,6 +27,8 @@ typedef enum EngineConnectorResult {
 	ENGINE_ERROR,
 	/* Достигнут потолок подписок */
 	MAX_SUBS_REACHED,
+	/* Передан неверный идентификатор подписки */
+	INCORRECT_ID,
 	/* Неизвестная ошибка */
 	UNKNOWN_ERROR,
 
@@ -41,7 +43,7 @@ typedef enum EngineConnectorResult {
 
 typedef bool(*EngineEventHandler)(HCMD, EngineCommand, EngineConnectorResult, EngineEvent);
 
-HCMD EngineCmd(EngineCommand cmd, const char* key, const EngineEventHandler callback);
-void EngineConnectorTick();
+HCMD EngineCmd(EngineCommand cmd, const char* key, const EngineEventHandler callback, HCMD id = 0);
+#define EngineConnectorTick() engine_control_tick(false, false, false, false)
 
 #endif /* INC_ENGINE_CONNECTOR_H_ */

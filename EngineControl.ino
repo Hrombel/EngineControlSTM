@@ -4,7 +4,10 @@
 #include <algorithm> // std::min
 
 #include "settings.h"
-#include "io.h"
+#include "engine_connector.h"
+#include "engine_control.h"
+#include "bus_connector.h"
+#include "bus_control.h"
 
 
 #ifndef STASSID
@@ -20,11 +23,6 @@
 
 #define logger (&Serial1)
 
-#define EN_PIN 5
-#define TX_PIN 1
-#define STARTER_PIN 16
-#define IGNITION_PIN 14
-
 #define DATA_BUF_SIZE  1024 // bytes
 
 //how many clients should be able to telnet to this ESP8266
@@ -37,68 +35,43 @@ const int port = 23;
 WiFiServer server(port);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
 
-bool initialized = false;
+unsigned long long timer;
+char state = 0;
 char cmd = 0;
-int state;
-unsigned long timer;
-uint8_t responseBuf[128];
-uint8_t responseBufIndex;
 
-const uint8_t initMsg[] = { 0xC1, 0x33, 0xF1, 0x81, 0x66 };
-const uint8_t initMsgLen = sizeof(initMsg);
+HCMD cmdHandler = 0;
+HBusCmd busHandler = 0;
+#define EngineStart(key) cmdHandler = EngineCmd(CMD_START_ENGINE, key, EngineCallback, cmdHandler)
+#define EngineStop(key) cmdHandler = EngineCmd(CMD_STOP_ENGINE, key, EngineCallback, cmdHandler)
+#define BusInit() busHandler = BusCmd(BUS_CMD_INIT, BusCallback, busHandler)
 
-typedef struct {
-  const uint8_t bytes[6];
-  const uint8_t responseLen;
-  int (*convert)(const uint8_t* response);
-
-} Command;
-
-const Command cmds[] = {
-  {
-    { 0xC2, 0x33, 0xF1, 0x01, 0x0C, 0xF3 }, 14, // Обороты двигателя
-    [](const uint8_t* response) {
-      uint16_t res; 
-      auto rpm = (uint8_t*)&res;
-      rpm[0] = response[6+6];
-      rpm[1] = response[6+5];
-      return res / 4;
+bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
+  if(res == BUS_MESSAGE) {
+    if(event.msg == BUS_INIT_SUCCESS) {
+      state = 3;
     }
-  },
-  // { 
-  //   { 0xC2, 0x33, 0xF1, 0x01, 0x05, 0xEC }, 13, // Температура охлаждающей жидкости
-  //   [](const uint8_t* response) { return response[6+5] - 40; } 
-  // },
-  // {
-  //   { 0xC2, 0x33, 0xF1, 0x01, 0x0F, 0xF6 }, 13, // Температура воздуха
-  //   [](const uint8_t* response) { return response[6+5] - 40; } 
-  // },
-  // {
-  //   { 0xC2, 0x33, 0xF1, 0x01, 0x0D, 0xF4 }, 13, // Скорость
-  //   [](const uint8_t* response) { return (int)response[6+5]; }
-  // }
-};
+  }
+  else if(res == BUS_ERROR) {
+    if(event.err == BUS_INIT_ERROR) {
+      EngineStop("password");
+      state = 0;
+    }
+  }
 
-const int cmdLen = sizeof(cmds[0].bytes);
-const int cmdsLen = sizeof(cmds) / sizeof(Command);
+  return false;
+}
 
-uint8_t sendingCmd;
-uint8_t sendingByte;
-
-uint16_t sensors[cmdsLen];
-int currentSensor;
-
-/**
-	const char* key
-	EngineEventHandler callback
-*/
-#define EngineStart(key, callback) EngineCmd(CMD_START_ENGINE, key, callback)
-
-bool StartEngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event) {
-  if (res == ENGINE_MESSAGE)
-    serverClients[0].printf("%d: ENGINE MESSAGE: %d\n\r", callId, event.msg);
-  else if (res == ENGINE_ERROR)
-    serverClients[0].printf("%d: ENGINE ERROR: %d\n\r", callId, event.err);
+bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event) {
+  if(res == ENGINE_MESSAGE) {
+    if(event.msg == ENGINE_IGNITION_ON) {
+      if(state == 0)
+        state = 1;
+    }
+    else if(event.msg == ENGINE_IGNITION_OFF) {
+      if(state != 0)
+        state = 0;
+    }
+  }
 
 	return false;
 }
@@ -128,113 +101,27 @@ int GetRPM() {
 	return sensors[0];
 }
 
-uint8_t ecuTick() {
-    switch (state)
-    {
-    case 0:
-        serverClients[0].println("Initializing...");
-        timer = millis();
-        pinMode(TX_PIN, OUTPUT);
-        digitalWrite(TX_PIN, HIGH);
-        state++;
-        break;
-    case 1:
-        if(millis() - timer >= 300) {
-            digitalWrite(TX_PIN, LOW);
-            timer = millis();
-            state++;
-        }
-        break;
-    case 2:
-        if(millis() - timer >= 25) {
-            digitalWrite(TX_PIN, HIGH);
-            timer = millis();
-            state++;
-        }
-
-        break;
-    case 3:
-        if(millis() - timer >= 25) {
-            Serial.begin(BAUD_SERIAL);
-            Serial.setRxBufferSize(RXBUFFERSIZE);
-            sendingByte = 0;
-            state++;
-        }
-
-        break;
-    case 4:
-        if(millis() - timer >= 10) {
-            Serial.write(initMsg[sendingByte++]);
-            Serial.flush();
-            timer = millis();
-            if(sendingByte == initMsgLen) {
-              responseBufIndex = 0;
-              state++;
-            }
-        }
-        break;
-    case 5:
-        if(Serial.available()) {
-          responseBuf[responseBufIndex++] = Serial.read();
-          if(responseBufIndex == 12) {
-            timer = millis();
-
-            if(responseBuf[5+3] == 0xC1) {
-              serverClients[0].println("INIT Success! Starting command loop...");
-            }
-            else {
-              serverClients[0].println("INIT Failed! Aborting connection...");
-              return 1;
-            }
-            sendingCmd = 0;
-            currentSensor = 0;
-            state++;
-          }
-        }
-
-        break;
-    case 6:
-      if(millis() - timer >= 100) {
-        sendingByte = 0;
-        state++;
-      }
-      break;
-    case 7:
-      if(millis() - timer >= 10) {
-        Serial.write(cmds[sendingCmd].bytes[sendingByte++]);
-        timer = millis();
-        if(sendingByte == 6) {
-          responseBufIndex = 0;
-          state++;
-        }
-      }
-      break;
-    case 8:
-      if(millis() - timer > 60) {
-        // Чистим входной буфер
-        Serial.readBytes(responseBuf, Serial.available());
-        sendingCmd = 0;
-        sendingByte = 0;
-        state = 7;
-      }
-      else if(Serial.available()) {
-        responseBuf[responseBufIndex++] = Serial.read();
-        timer = millis();
-
-        if(responseBufIndex == cmds[sendingCmd].responseLen) {
-          sensors[sendingCmd] = cmds[sendingCmd].convert(responseBuf);
-
-          if(++sendingCmd == cmdsLen)
-            sendingCmd = 0;
-
-          state = 6;
-        }
-        
-      }
-      break;
+void ownTick() {
+  switch (state)
+  {
+  case 0:
+    break;
+  case 1:
+    timer = GetTime();
+    state++;
+    break;
+  case 2:
+    if(GetTime() - timer > 100) {
+      BusInit();
     }
+    break;
+  case 3:
 
-    return 0;
+    break;
+  
+  default:
+    break;
+  }
 }
 
 void setup() {
@@ -333,14 +220,13 @@ void loop() {
     cmd = serverClients[0].read();
     switch (cmd)
     {
-    case 'i':
-      initialized = true;
-      state = 0;
-      timer = millis();
-      break;
     case 's':
       serverClients[0].println("Sending start command...");
-      EngineStart("password", StartEngineCallback);
+      EngineStart("password");
+      break;
+    case 'e':
+      serverClients[0].println("Sending stop command...");
+      EngineStop("password");
       break;
     
     default:
@@ -349,11 +235,7 @@ void loop() {
     }
   }
 
-  if(initialized) {
-    int res = ecuTick();
-    if(res != 0)
-      initialized = false;
-  }
-
+  ownTick();
+  BusConnectorTick();
   EngineConnectorTick();
 }

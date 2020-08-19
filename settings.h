@@ -29,4 +29,21 @@
 #define IDLING_RPM			900
 
 
+
+
+#define EN_PIN 5
+#define TX_PIN 1
+#define STARTER_PIN 16
+#define IGNITION_PIN 14
+
+#define TxSetOutput() pinMode(TX_PIN, OUTPUT)
+#define TxWriteHigh() digitalWrite(TX_PIN, HIGH)
+#define TxWriteLow() digitalWrite(TX_PIN, LOW)
+#define InitUART() Serial.begin(BAUD_SERIAL); Serial.setRxBufferSize(RXBUFFERSIZE)
+#define UARTWriteByte(byte) Serial.write(byte)
+#define UARTReadByte() Serial.read()
+#define UARTBytesAvailable() Serial.available()
+#define UARTReadBytes(buf, len) Serial.readBytes(buf, len)
+
+
 #endif /* INC_SETTINGS_H_ */
