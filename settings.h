@@ -33,7 +33,7 @@
 
 #define EN_PIN 5
 #define TX_PIN 1
-#define STARTER_PIN 16
+#define STARTER_PIN 12
 #define IGNITION_PIN 14
 
 #define TxSetOutput() pinMode(TX_PIN, OUTPUT)
