@@ -8,6 +8,8 @@
 #ifndef INC_SETTINGS_H_
 #define INC_SETTINGS_H_
 
+#include <Arduino.h>
+
 /* Максимальное количество одновременных подключений по CAN-шине */
 #define MAX_CONNECTIONS 10
 
@@ -39,7 +41,7 @@
 #define TxSetOutput() pinMode(TX_PIN, OUTPUT)
 #define TxWriteHigh() digitalWrite(TX_PIN, HIGH)
 #define TxWriteLow() digitalWrite(TX_PIN, LOW)
-#define InitUART() Serial.begin(BAUD_SERIAL); Serial.setRxBufferSize(RXBUFFERSIZE)
+#define InitUART() Serial.begin(10400); Serial.setRxBufferSize(1024)
 #define UARTWriteByte(byte) Serial.write(byte)
 #define UARTReadByte() Serial.read()
 #define UARTBytesAvailable() Serial.available()

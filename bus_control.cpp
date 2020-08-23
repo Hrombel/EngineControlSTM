@@ -17,7 +17,7 @@ static const unsigned char initMsgLen = sizeof(initMsg);
 static const Command cmds[] = {
   {
     { 0xC2, 0x33, 0xF1, 0x01, 0x0C, 0xF3 }, 14, // Обороты двигателя
-    [](const char* response) {
+    [](const unsigned char* response) {
       unsigned short res; 
       auto rpm = (unsigned char*)&res;
       rpm[0] = response[6+6];
@@ -27,15 +27,15 @@ static const Command cmds[] = {
   },
   { 
     { 0xC2, 0x33, 0xF1, 0x01, 0x05, 0xEC }, 13, // Температура охлаждающей жидкости
-    [](const char* response) { return response[6+5] - 40; } 
+    [](const unsigned char* response) { return response[6+5] - 40; } 
   },
   {
     { 0xC2, 0x33, 0xF1, 0x01, 0x0F, 0xF6 }, 13, // Температура воздуха
-    [](const char* response) { return response[6+5] - 40; } 
+    [](const unsigned char* response) { return response[6+5] - 40; } 
   },
   {
     { 0xC2, 0x33, 0xF1, 0x01, 0x0D, 0xF4 }, 13, // Скорость
-    [](const char* response) { return (int)response[6+5]; }
+    [](const unsigned char* response) { return (int)response[6+5]; }
   }
 };
 
@@ -57,17 +57,18 @@ static BusEvent e;
 #define message(event) BusControlEvent(false, event)
 #define error(event)   BusControlEvent(true, event)
 
-void BusSubscribe(BusSensor sensor) {
+bool BusSubscribe(BusSensor sensor) {
   if(sensor >= cmdsLen) {
     e.err = BUS_INCORRECT_SENSOR_ERROR; error(e);
-    return;
+    return false;
   }
 
   for(int i = 0; i < subsCount; i++) {
-    if(subs[i] == sensor) return;
+    if(subs[i] == sensor) return true;
   }
 
   subs[subsCount++] = sensor;
+  return true;
 }
 
 void bus_tick(bool initSignal) {

@@ -26,8 +26,11 @@ typedef enum {
 
 } BusConnectorResult;
 
-typedef bool(*BusEventHandler)(HBusCmd, BusCommand, BusConnectorResult, BusEvent);
+typedef unsigned HBusSub;
+typedef bool(*BusValueHandler)(HBusSub, BusSensor, int);
+HBusSub BusConnectorSubscribe(BusSensor, const BusValueHandler, HBusSub = 0);
 
+typedef bool(*BusEventHandler)(HBusCmd, BusCommand, BusConnectorResult, BusEvent);
 HBusCmd BusCmd(BusCommand cmd, const BusEventHandler callback, HBusCmd id = 0);
 #define BusConnectorTick() bus_tick(false);
 

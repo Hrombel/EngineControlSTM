@@ -1,5 +1,4 @@
 #include "settings.h"
-#include "types.h"
 #include "engine_control.h"
 
 
@@ -15,7 +14,7 @@
 #define A_ENGINE_WORKING		9
 
 #define message(event) EngineControlEvent(false, event)
-#define error(event)   EngineControlEvent(true, event)
+#define error(event) EngineControlEvent(true, event)
 
 void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_start, bool sig_engine_stop)
 {

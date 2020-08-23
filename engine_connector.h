@@ -41,6 +41,8 @@ typedef enum {
 
 } EngineConnectorResult;
 
+void EngineControlEvent(bool isError, EngineEvent event);
+
 typedef bool(*EngineEventHandler)(HCMD, EngineCommand, EngineConnectorResult, EngineEvent);
 
 HCMD EngineCmd(EngineCommand cmd, const char* key, const EngineEventHandler callback, HCMD id = 0);

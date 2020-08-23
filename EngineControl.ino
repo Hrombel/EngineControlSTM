@@ -15,7 +15,6 @@
 #define STAPSK  "DiTaKsA712892"
 #endif
 
-#define BAUD_SERIAL 10400
 #define BAUD_LOGGER 115200
 #define RXBUFFERSIZE 1024
 
@@ -44,6 +43,8 @@ HBusCmd busHandler = 0;
 #define EngineStart(key) cmdHandler = EngineCmd(CMD_START_ENGINE, key, EngineCallback, cmdHandler)
 #define EngineStop(key) cmdHandler = EngineCmd(CMD_STOP_ENGINE, key, EngineCallback, cmdHandler)
 #define BusInit() busHandler = BusCmd(BUS_CMD_INIT, BusCallback, busHandler)
+
+static int rpm = 0;
 
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
   if(res == BUS_MESSAGE) {
@@ -76,6 +77,13 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
 	return false;
 }
 
+bool UpdateSensorCallback(HBusSub id, BusSensor sensor, int value) {
+  if(sensor == 0)
+    rpm = value;
+
+  return false;
+}
+
 int GetTime() {
 	return millis();
 }
@@ -98,7 +106,7 @@ void SetStarterFlag(bool val) {
 }
 
 int GetRPM() {
-	return sensors[0];
+	return rpm;
 }
 
 void ownTick() {
@@ -113,6 +121,7 @@ void ownTick() {
   case 2:
     if(GetTime() - timer > 100) {
       BusInit();
+      state = 3;
     }
     break;
   case 3:
@@ -138,8 +147,6 @@ void setup() {
   logger->println("\n\nUsing Serial1 for logging");
 
   logger->println(ESP.getFullVersion());
-  logger->printf("Serial baud: %d (8n1: %d KB/s)\n", BAUD_SERIAL, BAUD_SERIAL * 8 / 10 / 1024);
-  logger->printf("Serial receive buffer size: %d bytes\n", RXBUFFERSIZE);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -188,6 +195,8 @@ void setup() {
   server.setNoDelay(true);
 
   logger->print("Ready! Use 'telnet ");
+
+  BusConnectorSubscribe(0, UpdateSensorCallback);
 }
 
 void loop() {

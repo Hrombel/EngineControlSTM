@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "engine_control.h"
 #include "engine_connector.h"
 
 bool KeyCompare(const char*, const char*, int);
