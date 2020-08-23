@@ -51,12 +51,16 @@ bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEven
     if(event.msg == BUS_INIT_SUCCESS) {
       state = 3;
     }
+
+    serverClients[0].printf("BUS MESSAGE: %d\n\r", event.msg);
   }
   else if(res == BUS_ERROR) {
     if(event.err == BUS_INIT_ERROR) {
       EngineStop("password");
       state = 0;
     }
+    
+    serverClients[0].printf("BUS ERROR: %d\n\r", event.err);
   }
 
   return false;
@@ -72,6 +76,13 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
       if(state != 0)
         state = 0;
     }
+  }
+
+  if(res == ENGINE_MESSAGE) {
+    serverClients[0].printf("ENGINE MESSAGE: %d\n\r", event.msg);
+  }
+  else {
+    serverClients[0].printf("ENGINE ERROR: %d\n\r", event.err);
   }
 
 	return false;
@@ -208,7 +219,7 @@ void loop() {
     for (i = 0; i < MAX_SRV_CLIENTS; i++) {
       if (!serverClients[i]) { // equivalent to !serverClients[i].connected()
         serverClients[i] = server.available();
-        serverClients[i].println("List of commands:\n\ri - init bus\n\rs - start engine");
+        serverClients[i].println("List of commands:\n\rs - start engine\n\re - stop engine");
         break;
       }
     }

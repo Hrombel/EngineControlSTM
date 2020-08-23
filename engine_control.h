@@ -34,7 +34,7 @@ typedef enum EngineError {
 	ENGINE_STARTING_PROGRESS,
 	/* Режим управления двигателем переключен на ручной режим */
 	ENGINE_SWITCHED_TO_MANUAL,
-	/* Запуск двигателя был отменен пользователем */
+	/* Запуск двигателя был отменен */
 	ENGINE_START_ABORTED,
 	
 } EngineError;

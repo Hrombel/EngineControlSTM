@@ -134,7 +134,11 @@ void bus_tick(bool initSignal) {
         }
         break;
     case 6:
-        if(UARTBytesAvailable()) {
+        if(GetTime() - timer >= 100) {
+          e.err = BUS_INIT_ERROR; error(e);
+          state = 0;
+        }
+        else if(UARTBytesAvailable()) {
           responseBuf[responseBufIndex++] = UARTReadByte();
           if(responseBufIndex == 12) {
             timer = GetTime();
