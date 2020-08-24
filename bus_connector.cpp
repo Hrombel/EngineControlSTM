@@ -102,7 +102,10 @@ HBusCmd BusCmd(BusCommand cmd, const BusEventHandler callback, HBusCmd id) {
 
 	switch (cmd) {
 	case BUS_CMD_INIT:
-		bus_tick(true);
+		bus_tick(true, false);
+		break;
+	case BUS_CMD_STOP:
+		bus_tick(false, true);
 		break;
 	}
 	

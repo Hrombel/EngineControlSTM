@@ -43,6 +43,7 @@ HBusCmd busHandler = 0;
 #define EngineStart(key) cmdHandler = EngineCmd(CMD_START_ENGINE, key, EngineCallback, cmdHandler)
 #define EngineStop(key) cmdHandler = EngineCmd(CMD_STOP_ENGINE, key, EngineCallback, cmdHandler)
 #define BusInit() busHandler = BusCmd(BUS_CMD_INIT, BusCallback, busHandler)
+#define BusStop() busHandler = BusCmd(BUS_CMD_STOP, BusCallback, busHandler)
 
 static int rpm = 0;
 
@@ -73,8 +74,10 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
         state = 1;
     }
     else if(event.msg == ENGINE_IGNITION_OFF) {
-      if(state != 0)
+      if(state != 0) {
+        BusStop();
         state = 0;
+      }
     }
   }
 

@@ -32,6 +32,6 @@ HBusSub BusConnectorSubscribe(BusSensor, const BusValueHandler, HBusSub = 0);
 
 typedef bool(*BusEventHandler)(HBusCmd, BusCommand, BusConnectorResult, BusEvent);
 HBusCmd BusCmd(BusCommand cmd, const BusEventHandler callback, HBusCmd id = 0);
-#define BusConnectorTick() bus_tick(false);
+#define BusConnectorTick() bus_tick(false, false)
 
 #endif /* INC_BUS_CONNECTOR_H_ */

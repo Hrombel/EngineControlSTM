@@ -71,101 +71,138 @@ bool BusSubscribe(BusSensor sensor) {
   return true;
 }
 
-void bus_tick(bool initSignal) {
+void bus_tick(bool initSignal, bool stopSignal) {
     switch (state)
     {
     case 0:
       if(initSignal)
         state++;
+      else if(stopSignal)
+        { e.err = BUS_ALREADY_STOPPED; error(e); }
 
       break;
     case 1:
-        if(initSignal)
-          { e.err = BUS_INIT_PROGRESS; error(e); }
-
+      if(initSignal)
+        { e.err = BUS_INIT_PROGRESS; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else {
         timer = GetTime();
         TxSetOutput();
         TxWriteHigh();
         state++;
-        break;
+      }
+      break;
     case 2:
-        if(initSignal)
-          { e.err = BUS_INIT_PROGRESS; error(e); }
-        
-        if(GetTime() - timer >= 300) {
-            TxWriteLow();
-            timer = GetTime();
-            state++;
-        }
-        break;
+      if(initSignal)
+        { e.err = BUS_INIT_PROGRESS; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer >= 300) {
+        TxWriteLow();
+        timer = GetTime();
+        state++;
+      }
+      break;
     case 3:
-        if(initSignal)
-          { e.err = BUS_INIT_PROGRESS; error(e); }
-        
-        if(GetTime() - timer >= 25) {
-            TxWriteHigh();
-            timer = GetTime();
-            state++;
-        }
+      if(initSignal)
+        { e.err = BUS_INIT_PROGRESS; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer >= 25) {
+        TxWriteHigh();
+        timer = GetTime();
+        state++;
+      }
 
-        break;
+      break;
     case 4:
-        if(initSignal)
-          { e.err = BUS_INIT_PROGRESS; error(e); }
-        
-        if(GetTime() - timer >= 25) {
-            InitUART();
-            sendingByte = 0;
-            state++;
-        }
+      if(initSignal)
+        { e.err = BUS_INIT_PROGRESS; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer >= 25) {
+        InitUART();
+        sendingByte = 0;
+        state++;
+      }
 
-        break;
+      break;
     case 5:
-        if(initSignal)
-          { e.err = BUS_INIT_PROGRESS; error(e); }
-
-        if(GetTime() - timer >= 10) {
-            UARTWriteByte(initMsg[sendingByte++]);
-            timer = GetTime();
-            if(sendingByte == initMsgLen) {
-              responseBufIndex = 0;
-              state++;
-            }
+      if(initSignal)
+        { e.err = BUS_INIT_PROGRESS; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer >= 10) {
+        UARTWriteByte(initMsg[sendingByte++]);
+        timer = GetTime();
+        if(sendingByte == initMsgLen) {
+          responseBufIndex = 0;
+          state++;
         }
-        break;
+      }
+      break;
     case 6:
-        if(GetTime() - timer >= 100) {
-          e.err = BUS_INIT_ERROR; error(e);
-          state = 0;
-        }
-        else if(UARTBytesAvailable()) {
-          responseBuf[responseBufIndex++] = UARTReadByte();
-          if(responseBufIndex == 12) {
-            timer = GetTime();
+      if(initSignal)
+        { e.err = BUS_INIT_PROGRESS; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer >= 100) {
+        e.err = BUS_INIT_ERROR; error(e);
+        state = 0;
+      }
+      else if(UARTBytesAvailable()) {
+        responseBuf[responseBufIndex++] = UARTReadByte();
+        if(responseBufIndex == 12) {
+          timer = GetTime();
 
-            if(responseBuf[5+3] == 0xC1) {
-              e.msg = BUS_INIT_SUCCESS; message(e);
-              sendingSub = 0;
-              
-              sendingCmd = subsCount ? subs[sendingSub] : 0;
-              state++;
-            }
-            else {
-              e.err = BUS_INIT_ERROR; error(e);
-              state = 0;
-            }
+          if(responseBuf[5+3] == 0xC1) {
+            e.msg = BUS_INIT_SUCCESS; message(e);
+            sendingSub = 0;
+            
+            sendingCmd = subsCount ? subs[sendingSub] : 0;
+            state++;
+          }
+          else {
+            e.err = BUS_INIT_ERROR; error(e);
+            state = 0;
           }
         }
+      }
 
-        break;
+      break;
     case 7:
-      if(GetTime() - timer >= 100) {
+      if(initSignal)
+        { e.err = BUS_ALREADY_INIT; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer >= 100) {
         sendingByte = 0;
         state++;
       }
       break;
     case 8:
-      if(GetTime() - timer >= 10) {
+      if(initSignal)
+        { e.err = BUS_ALREADY_INIT; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer >= 10) {
         UARTWriteByte(cmds[sendingCmd].bytes[sendingByte++]);
         timer = GetTime();
         if(sendingByte == 6) {
@@ -175,7 +212,13 @@ void bus_tick(bool initSignal) {
       }
       break;
     case 9:
-      if(GetTime() - timer > 60) {
+      if(initSignal)
+        { e.err = BUS_ALREADY_INIT; error(e); }
+      else if(stopSignal) {
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(GetTime() - timer > 60) {
         // Чистим входной буфер
         UARTReadBytes(responseBuf, UARTBytesAvailable());
         sendingCmd = 0;
