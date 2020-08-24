@@ -89,8 +89,10 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
 }
 
 bool UpdateSensorCallback(HBusSub id, BusSensor sensor, int value) {
-  if(sensor == 0)
+  if(sensor == 0) {
+    serverClients[0].printf("RPM: %d\n\r", value);
     rpm = value;
+  }
 
   return false;
 }
