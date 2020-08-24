@@ -63,6 +63,8 @@ bool BusSensorValue(BusSensor sensor, int value) {
 		}
 		else i++;
 	}
+
+	return false;
 }
 
 HBusCmd BusCmd(BusCommand cmd, const BusEventHandler callback, HBusCmd id) {

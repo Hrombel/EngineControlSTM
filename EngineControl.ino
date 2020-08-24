@@ -132,7 +132,7 @@ void ownTick() {
     state++;
     break;
   case 2:
-    if(GetTime() - timer > 100) {
+    if(GetTime() - timer > 1000) {
       BusInit();
       state = 3;
     }
