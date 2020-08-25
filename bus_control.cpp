@@ -75,16 +75,18 @@ void bus_tick(bool initSignal, bool stopSignal) {
     switch (state)
     {
     case 0:
+      if(stopSignal)
+        { e.err = BUS_ALREADY_STOPPED; error(e); }
+
       if(initSignal)
         state++;
-      else if(stopSignal)
-        { e.err = BUS_ALREADY_STOPPED; error(e); }
 
       break;
     case 1:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
-      else if(stopSignal) {
+      
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -98,7 +100,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 2:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
-      else if(stopSignal) {
+      
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -111,7 +114,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 3:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
-      else if(stopSignal) {
+
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -125,7 +129,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 4:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
-      else if(stopSignal) {
+
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -139,7 +144,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 5:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
-      else if(stopSignal) {
+      
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -155,7 +161,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 6:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
-      else if(stopSignal) {
+      
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -186,7 +193,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 7:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
-      else if(stopSignal) {
+      
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -198,7 +206,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 8:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
-      else if(stopSignal) {
+      
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
@@ -214,7 +223,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
     case 9:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
-      else if(stopSignal) {
+      
+      if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
         state = 0;
       }
