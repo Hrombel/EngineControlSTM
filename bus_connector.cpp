@@ -63,8 +63,10 @@ bool BusSensorValue(BusSensor sensor, int value) {
 		}
 		else i++;
 	}
-
-	return false;
+	
+	for(int i = 0; i < freeSubIndex; i++)
+		if(sensor == valueSubs[i].sensor) return false;
+	return true;
 }
 
 HBusCmd BusCmd(BusCommand cmd, const BusEventHandler callback, HBusCmd id) {
