@@ -18,15 +18,17 @@
 #define KEY_LENGTH (sizeof(PRIVATE_KEY) / sizeof(char))
 
  /** Сколько ждать после включения зажигания? */
-#define IGNITION_TIME		2000
+#define IGNITION_TIME		7000
 /** Максимальное время кручения стартера  */
-#define STARTER_TIME 		3000
+#define STARTER_TIME 		2000
 /** Максимальное количество попыток повторного запуска двигателя */
-#define STARTER_RETRY_N		2
+#define STARTER_RETRY_N		0
 /** Время между считываниями скорости вращения коленвала  */
 #define RPM_READ_DELAY 		0
 /** Время задержки после неудачной попытки запуска двигателя **/
 #define STARTER_FAIL_DELAY	1000
+/**  Время задержки перед выключением зажигания */
+#define IGNITION_STOP_DELAY	1000
 /* Минимальные обороты холостого хода двигателя */
 #define IDLING_RPM			900
 

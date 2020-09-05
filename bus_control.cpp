@@ -14,6 +14,9 @@ static unsigned char responseBufIndex;
 static const unsigned char initMsg[] = { 0xC1, 0x33, 0xF1, 0x81, 0x66 };
 static const unsigned char initMsgLen = sizeof(initMsg);
 
+static const unsigned char stopMsg[] = { 0xC1, 0x33, 0xF1, 0x82, 0x67 };
+static const unsigned char stopMsgLen = sizeof(stopMsg);
+
 static const Command cmds[] = {
   {
     { 0xC2, 0x33, 0xF1, 0x01, 0x0C, 0xF3 }, 14, // Обороты двигателя
@@ -54,6 +57,8 @@ static unsigned long long timer;
 
 static BusEvent e;
 
+static bool stopping = false;
+
 #define message(event) BusControlEvent(false, event)
 #define error(event)   BusControlEvent(true, event)
 
@@ -75,6 +80,11 @@ void bus_tick(bool initSignal, bool stopSignal) {
     switch (state)
     {
     case 0:
+      if(UARTBytesAvailable()) {
+        // Чистим входной буфер
+        UARTReadBytes(responseBuf, UARTBytesAvailable());
+      }
+
       if(stopSignal)
         { e.err = BUS_ALREADY_STOPPED; error(e); }
 
@@ -163,10 +173,11 @@ void bus_tick(bool initSignal, bool stopSignal) {
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
       if(stopSignal) {
-        e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        stopping = true;
       }
-      else if(GetTime() - timer >= 100) {
+
+      if(GetTime() - timer > 100) {
+        stopping = false;
         e.err = BUS_INIT_ERROR; error(e);
         state = 0;
       }
@@ -176,13 +187,16 @@ void bus_tick(bool initSignal, bool stopSignal) {
           timer = GetTime();
 
           if(responseBuf[5+3] == 0xC1) {
-            e.msg = BUS_INIT_SUCCESS; message(e);
-            sendingSub = 0;
-            
-            sendingCmd = subsCount ? subs[sendingSub] : 0;
+            if(!stopping) {
+              e.msg = BUS_INIT_SUCCESS; message(e);
+              sendingSub = 0;
+              
+              sendingCmd = subsCount ? subs[sendingSub] : 0;
+            }
             state++;
           }
           else {
+            stopping = false;
             e.err = BUS_INIT_ERROR; error(e);
             state = 0;
           }
@@ -195,12 +209,15 @@ void bus_tick(bool initSignal, bool stopSignal) {
         { e.err = BUS_ALREADY_INIT; error(e); }
       
       if(stopSignal) {
-        e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        stopping = true;
       }
-      else if(GetTime() - timer >= 100) {
+
+      if(GetTime() - timer >= 100) {
         sendingByte = 0;
-        state++;
+        if(stopping)
+          state = 10;
+        else
+          state++;
       }
       break;
     case 8:
@@ -208,10 +225,10 @@ void bus_tick(bool initSignal, bool stopSignal) {
         { e.err = BUS_ALREADY_INIT; error(e); }
       
       if(stopSignal) {
-        e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        stopping = true;
       }
-      else if(GetTime() - timer >= 10) {
+
+      if(GetTime() - timer >= 10) {
         UARTWriteByte(cmds[sendingCmd].bytes[sendingByte++]);
         timer = GetTime();
         if(sendingByte == 6) {
@@ -225,41 +242,88 @@ void bus_tick(bool initSignal, bool stopSignal) {
         { e.err = BUS_ALREADY_INIT; error(e); }
       
       if(stopSignal) {
-        e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        stopping = true;
       }
-      else if(GetTime() - timer > 60) {
+      
+      if(GetTime() - timer > 60) {
         // Чистим входной буфер
         UARTReadBytes(responseBuf, UARTBytesAvailable());
-        sendingCmd = 0;
         sendingByte = 0;
-        state = 8;
+        if(stopping)
+          state = 10;
+        else
+          state = 8;
       }
       else if(UARTBytesAvailable()) {
         responseBuf[responseBufIndex++] = UARTReadByte();
         timer = GetTime();
-
+        
         if(responseBufIndex == cmds[sendingCmd].responseLen) {
-          int value = cmds[sendingCmd].convert(responseBuf);
+          if(!stopping) {
+            int value = cmds[sendingCmd].convert(responseBuf);
 
-          if(subsCount && BusSensorValue(sendingCmd, value)) {
-            for (int i = sendingSub + 1; i < subsCount; i++)
-              subs[i-1] = subs[i];
-            subsCount--;
-          }
+            if(subsCount && BusSensorValue(sendingCmd, value)) {
+              for (int i = sendingSub + 1; i < subsCount; i++)
+                subs[i-1] = subs[i];
+              subsCount--;
+            }
 
-          if(subsCount) {
-            if(++sendingSub >= subsCount)
-              sendingSub = 0;
-            sendingCmd = subs[sendingSub];
+            if(subsCount) {
+              if(++sendingSub >= subsCount)
+                sendingSub = 0;
+              sendingCmd = subs[sendingSub];
+            }
+            else
+              sendingCmd = 0;
           }
-          else
-            sendingCmd = 0;
 
           state = 7;
         }
         
       }
+      break;
+
+    case 10:
+      if(initSignal) {
+        // ???
+      }
+      if(stopSignal) {
+        // ???
+      }
+
+      if(GetTime() - timer >= 10) {
+        UARTWriteByte(stopMsg[sendingByte++]);
+        timer = GetTime();
+        if(sendingByte == stopMsgLen) {
+          responseBufIndex = 0;
+          state++;
+        }
+      }
+      break;
+    case 11:
+      if(initSignal) {
+        // ???
+      }
+      if(stopSignal) {
+        // ???
+      }
+
+      if(GetTime() - timer > 100) {
+        stopping = false;
+        e.msg = BUS_STOP_SUCCESS; message(e);
+        state = 0;
+      }
+      else if(UARTBytesAvailable()) {
+        responseBuf[responseBufIndex++] = UARTReadByte();
+        if(responseBufIndex == 12) {
+          timer = GetTime();
+          
+          stopping = false;
+          e.msg = BUS_STOP_SUCCESS; message(e);
+          state = 0;
+        }
+      }
+
       break;
     }
 }

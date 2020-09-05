@@ -49,16 +49,14 @@ static int rpm = 0;
 
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
   if(res == BUS_MESSAGE) {
-    if(event.msg == BUS_INIT_SUCCESS) {
-      state = 3;
+    if(event.msg == BUS_STOP_SUCCESS) {
+      state = 0;
     }
-
     serverClients[0].printf("BUS MESSAGE: %d\n\r", event.msg);
   }
   else if(res == BUS_ERROR) {
     if(event.err == BUS_INIT_ERROR) {
       EngineStop("password");
-      state = 0;
     }
     
     serverClients[0].printf("BUS ERROR: %d\n\r", event.err);
@@ -73,10 +71,11 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
       if(state == 0)
         state = 1;
     }
-    else if(event.msg == ENGINE_IGNITION_OFF) {
+  }
+  else if(res == ENGINE_ERROR) {
+    if(event.err == STARTER_FAILURE) {
       if(state != 0) {
         BusStop();
-        state = 0;
       }
     }
   }
@@ -100,7 +99,7 @@ bool UpdateSensorCallback(HBusSub id, BusSensor sensor, int value) {
   return false;
 }
 
-int GetTime() {
+unsigned long GetTime() {
 	return millis();
 }
 
@@ -135,7 +134,7 @@ void ownTick() {
     state++;
     break;
   case 2:
-    if(GetTime() - timer > 1000) {
+    if(GetTime() - timer > 3000) {
       BusInit();
       state = 3;
     }

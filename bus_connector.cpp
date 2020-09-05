@@ -64,8 +64,9 @@ bool BusSensorValue(BusSensor sensor, int value) {
 		else i++;
 	}
 	
-	for(int i = 0; i < freeSubIndex; i++)
+	for(int i = 0; i < freeValueSubIndex; i++) {
 		if(sensor == valueSubs[i].sensor) return false;
+	}
 	return true;
 }
 

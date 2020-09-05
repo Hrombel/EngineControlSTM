@@ -50,7 +50,7 @@ void SetStarterFlag(bool);
 int GetRPM();
 
 void EngineControlEvent(bool isError, EngineEvent event);
-int GetTime();
+unsigned long GetTime();
 
 void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_start, bool sig_engine_stop);
 

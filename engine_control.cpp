@@ -12,6 +12,7 @@
 #define A_RPM_READ_AWAIT 		7
 #define A_IGNITION_RETRY_AWAIT 	8
 #define A_ENGINE_WORKING		9
+#define A_IGNITION_STOP_AWAIT	10
 
 #define message(event) EngineControlEvent(false, event)
 #define error(event) EngineControlEvent(true, event)
@@ -77,6 +78,7 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 			ignTimer = GetTime();
 			e.msg = ENGINE_IGNITION_ON; message(e);
 			state = A_IGNITION_AWAIT;
+			break;
 		case A_IGNITION_AWAIT:
 			if (sig_engine_stop) {
 				SetIgnitionFlag(false);
@@ -107,6 +109,7 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 			SetStarterFlag(true);
 			startTimer = GetTime();
 			state = A_ENGINE_STARTING;
+			break;
 		case A_ENGINE_STARTING:
 			if (sig_engine_stop) {
 				SetStarterFlag(false);
@@ -144,24 +147,36 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 			}
 			else if (GetTime() - startTimer >= STARTER_TIME) {
 				SetStarterFlag(false);
+				ignTimer = GetTime();
+				e.err = STARTER_FAILURE; error(e);
+				
+				if(!retries) {
+					e.err = STARTER_FATAL_FAILURE; error(e);
+				}
+
+				state = A_IGNITION_STOP_AWAIT;
+			}
+			// else {
+			// 	rpmTimer = GetTime();
+			// 	state = A_RPM_READ_AWAIT;
+			// }
+
+			break;
+		case A_IGNITION_STOP_AWAIT:
+
+			if(GetTime() - ignTimer >= IGNITION_STOP_DELAY) {
 				SetIgnitionFlag(false);
+				e.msg = ENGINE_IGNITION_OFF; message(e);
 				if (retries--) {
-					e.err = STARTER_FAILURE; error(e);
 					ignTimer = GetTime();
 					state = A_IGNITION_RETRY_AWAIT;
 				}
 				else {
 					retries = STARTER_RETRY_N;
-					e.err = STARTER_FATAL_FAILURE; error(e);
 					state = IDLE; // Отказ
 				}
-				e.msg = ENGINE_IGNITION_OFF; message(e);
 			}
-			else {
-				rpmTimer = GetTime();
-				state = A_RPM_READ_AWAIT;
-			}
-
+			
 			break;
 		case A_RPM_READ_AWAIT: // Ждем перед сканированием оборотов
 			if (sig_engine_stop) {
