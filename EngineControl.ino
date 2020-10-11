@@ -71,14 +71,19 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
       if(state == 0)
         state = 1;
     }
-  }
-  else if(res == ENGINE_ERROR) {
-    if(event.err == STARTER_FAILURE) {
+    else if(event.msg == ENGINE_IGNITION_OFF) {
       if(state != 0) {
         BusStop();
       }
     }
   }
+  // else if(res == ENGINE_ERROR) {
+  //   if(event.err == STARTER_FATAL_FAILURE) {
+  //     if(state != 0) {
+  //       BusStop();
+  //     }
+  //   }
+  // }
 
   if(res == ENGINE_MESSAGE) {
     serverClients[0].printf("ENGINE MESSAGE: %d\n\r", event.msg);
