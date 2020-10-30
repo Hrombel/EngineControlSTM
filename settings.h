@@ -21,17 +21,16 @@
 #define IGNITION_TIME		7000
 /** Максимальное время кручения стартера  */
 #define STARTER_TIME 		2000
-/** Максимальное количество попыток повторного запуска двигателя */
-#define STARTER_RETRY_N		0
-/** Время между считываниями скорости вращения коленвала  */
-#define RPM_READ_DELAY 		0
 /** Время задержки после неудачной попытки запуска двигателя **/
 #define STARTER_FAIL_DELAY	1000
 /**  Время задержки перед выключением зажигания */
 #define IGNITION_STOP_DELAY	1000
 /* Минимальные обороты холостого хода двигателя */
 #define IDLING_RPM			900
-
+/* Размер буфера для приема данных по UART */
+#define RX_BUFFER_SIZE      128
+/* Размер софтварного буфера, в случае если указан размер более 128 байт */
+#define SOFT_RX_BUFFER_SIZE RX_BUFFER_SIZE > 128 ? RX_BUFFER_SIZE - 128 : 0
 
 
 
@@ -43,7 +42,7 @@
 #define TxSetOutput() pinMode(TX_PIN, OUTPUT)
 #define TxWriteHigh() digitalWrite(TX_PIN, HIGH)
 #define TxWriteLow() digitalWrite(TX_PIN, LOW)
-#define InitUART() Serial.begin(10400); Serial.setRxBufferSize(1024)
+#define InitUART() Serial.begin(10400); if(SOFT_RX_BUFFER_SIZE) Serial.setRxBufferSize(SOFT_RX_BUFFER_SIZE)
 #define UARTWriteByte(byte) Serial.write(byte)
 #define UARTReadByte() Serial.read()
 #define UARTBytesAvailable() Serial.available()

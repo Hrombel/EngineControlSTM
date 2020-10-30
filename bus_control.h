@@ -15,7 +15,7 @@ typedef enum {
 	BUS_MESSAGE_NONE,
     /* Соединение с ЭБУ успешно установлено */
     BUS_INIT_SUCCESS,
-    /* Соединения с ЭБУ разорвано успешо */
+    /* Соединение с ЭБУ разорвано успешо */
     BUS_STOP_SUCCESS,
 
 } BusMessage;
@@ -34,6 +34,10 @@ typedef enum {
     BUS_STOP_PROGRESS,
     /* Шина итак остановлена */
     BUS_ALREADY_STOPPED,
+    /* Ошибка остановки шины (не дождались ответа от ЭБУ) */
+    BUS_STOP_ERROR,
+    /* Нельзя запускать шину. Она в процессе остановки */
+    BUS_INIT_STOP_PROGRESS,
 } BusError;
 
 typedef union {

@@ -23,7 +23,6 @@ bool CmdCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, Engi
 		if (res == ENGINE_ERROR) {
 			switch (event.err)
 			{
-			case STARTER_FATAL_FAILURE:
 			case ENGINE_IN_MANUAL_MODE:
 			case ENGINE_STARTING_PROGRESS:
 			case ENGINE_SWITCHED_TO_MANUAL:

@@ -18,8 +18,6 @@ typedef enum EngineError {
 	ERROR_NONE,
 	/* Неудачная попытка запуска двигателя */
 	STARTER_FAILURE,
-	/* Все попытки запуска двигателя закончились неудачей */
-	STARTER_FATAL_FAILURE,
 	/* Двигатель заглох */
 	ENGINE_STALLED,
 	/* Нельзя запускать стартер, не включив зажигание */

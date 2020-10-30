@@ -9,22 +9,17 @@
 #define A_IGNITION_AWAIT 		4
 #define A_STARTER 				5
 #define A_ENGINE_STARTING 		6
-#define A_RPM_READ_AWAIT 		7
-#define A_IGNITION_RETRY_AWAIT 	8
-#define A_ENGINE_WORKING		9
-#define A_IGNITION_STOP_AWAIT	10
+#define A_ENGINE_WORKING		7
 
 #define message(event) EngineControlEvent(false, event)
 #define error(event) EngineControlEvent(true, event)
 
 void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_start, bool sig_engine_stop)
 {
-	static unsigned int state = 0;
+	static unsigned int state = IDLE;
 
 	static unsigned int ignTimer;
-	static unsigned int rpmTimer;
 	static unsigned int startTimer;
-	static unsigned int retries = STARTER_RETRY_N;
 	static EngineEvent e;
 
 	switch (state) {
@@ -138,100 +133,17 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 				e.err = STARTER_WITHOUT_IGNITION; error(e);
 			}
 
-
 			if (GetRPM() >= IDLING_RPM) {
 				SetStarterFlag(false);
 				e.msg = ENGINE_START_OK; message(e);
-				rpmTimer = GetTime();
 				state = A_ENGINE_WORKING;
 			}
 			else if (GetTime() - startTimer >= STARTER_TIME) {
 				SetStarterFlag(false);
-				ignTimer = GetTime();
+				SetIgnitionFlag(false);
+				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.err = STARTER_FAILURE; error(e);
-				
-				if(!retries) {
-					e.err = STARTER_FATAL_FAILURE; error(e);
-				}
-
-				state = A_IGNITION_STOP_AWAIT;
-			}
-			// else {
-			// 	rpmTimer = GetTime();
-			// 	state = A_RPM_READ_AWAIT;
-			// }
-
-			break;
-		case A_IGNITION_STOP_AWAIT:
-
-			if(GetTime() - ignTimer >= IGNITION_STOP_DELAY) {
-				SetIgnitionFlag(false);
-				e.msg = ENGINE_IGNITION_OFF; message(e);
-				if (retries--) {
-					ignTimer = GetTime();
-					state = A_IGNITION_RETRY_AWAIT;
-				}
-				else {
-					retries = STARTER_RETRY_N;
-					state = IDLE; // Отказ
-				}
-			}
-			
-			break;
-		case A_RPM_READ_AWAIT: // Ждем перед сканированием оборотов
-			if (sig_engine_stop) {
-				SetStarterFlag(false);
-				SetIgnitionFlag(false);
-				e.msg = ENGINE_IGNITION_OFF; message(e);
-				e.err = ENGINE_START_ABORTED; error(e);
-				e.msg = ENGINE_STOP_OK; message(e);
-				state = IDLE;
-				break;
-			}
-			else if (sig_ign_on) {
-				if (sig_starter_on)
-					state = STARTER;
-				else {
-					SetStarterFlag(false);
-					state = IGNITION;
-				}
-				e.err = ENGINE_SWITCHED_TO_MANUAL; error(e);
-				break;
-			}
-			else if (sig_engine_start) {
-				e.err = ENGINE_STARTING_PROGRESS; error(e);
-			}
-			else if (sig_starter_on) {
-				e.err = STARTER_WITHOUT_IGNITION; error(e);
-			}
-
-			if (GetTime() - rpmTimer >= RPM_READ_DELAY) {
-				state = A_ENGINE_STARTING;
-			}
-
-			break;
-		case A_IGNITION_RETRY_AWAIT: // Ждем после неудачной попытки запуска двигателя
-			if (sig_engine_stop) {
-				e.err = ENGINE_START_ABORTED; error(e);
-				e.msg = ENGINE_STOP_OK; message(e);
-				state = IDLE;
-				break;
-			}
-			else if (sig_ign_on) {
-				SetStarterFlag(true);
-				state = IGNITION;
-				e.err = ENGINE_SWITCHED_TO_MANUAL; error(e);
-				break;
-			}
-			else if (sig_engine_start) {
-				e.err = ENGINE_STARTING_PROGRESS; error(e);
-			}
-			else if (sig_starter_on) {
-				e.err = STARTER_WITHOUT_IGNITION; error(e);
-			}
-
-			if (GetTime() - ignTimer >= STARTER_FAIL_DELAY) {
-				state = A_ENGINE_START;
+				state = IDLE; // Отказ
 			}
 
 			break;
@@ -255,13 +167,11 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 				break;
 			}
 
-			if (GetTime() - rpmTimer >= RPM_READ_DELAY) {
-				if (!GetRPM()) {
-					SetIgnitionFlag(false);
-					e.msg = ENGINE_IGNITION_OFF; message(e);
-					e.err = ENGINE_STALLED; error(e);
-					state = IDLE;
-				}
+			if (!GetRPM()) {
+				SetIgnitionFlag(false);
+				e.msg = ENGINE_IGNITION_OFF; message(e);
+				e.err = ENGINE_STALLED; error(e);
+				state = IDLE;
 			}
 			break;
 	}

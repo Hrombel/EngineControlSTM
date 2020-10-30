@@ -2,13 +2,26 @@
 #include "engine_control.h"
 #include "settings.h"
 
+#define IDLE                           0
+#define FIRST_HIGH 		                 1
+#define LOW 	                         2
+#define SECOND_HIGH 		               3
+#define UART_INIT 		                 4
+#define START_COMMUNICATION 		       5
+#define START_COMMUNICATION_RESPONSE	 6
+#define RESPONSE_DELAY		             7
+#define SENSOR_REQUEST 		             8
+#define SENSOR_RESPONSE	  	           9
+#define STOP_COMMUNICATION	          10
+#define STOP_COMMUNICATION_RESPONSE	  11
+
 typedef struct {
   const unsigned char bytes[6];
   const unsigned char responseLen;
   int (*convert)(const unsigned char* response);
 } Command;
 
-static unsigned char responseBuf[128];
+static unsigned char responseBuf[RX_BUFFER_SIZE];
 static unsigned char responseBufIndex;
 
 static const unsigned char initMsg[] = { 0xC1, 0x33, 0xF1, 0x81, 0x66 };
@@ -52,12 +65,13 @@ static unsigned char sendingSub;
 static BusSensor sendingCmd;
 static unsigned char sendingByte;
 
-static int state = 0;
+static int state = IDLE;
 static unsigned long long timer;
 
 static BusEvent e;
 
 static bool stopping = false;
+static int avail;
 
 #define message(event) BusControlEvent(false, event)
 #define error(event)   BusControlEvent(true, event)
@@ -76,99 +90,103 @@ bool BusSubscribe(BusSensor sensor) {
   return true;
 }
 
+inline void uartClean() {
+  avail = UARTBytesAvailable();
+  if(avail) {
+    // Чистим входной буфер
+    UARTReadBytes(responseBuf, avail);
+  }
+}
+
 void bus_tick(bool initSignal, bool stopSignal) {
     switch (state)
     {
-    case 0:
-      if(UARTBytesAvailable()) {
-        // Чистим входной буфер
-        UARTReadBytes(responseBuf, UARTBytesAvailable());
-      }
-
+    case IDLE:
       if(stopSignal)
         { e.err = BUS_ALREADY_STOPPED; error(e); }
 
       if(initSignal)
-        state++;
+        state = FIRST_HIGH;
 
       break;
-    case 1:
+    case FIRST_HIGH:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
       if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        state = IDLE;
       }
       else {
         timer = GetTime();
         TxSetOutput();
         TxWriteHigh();
-        state++;
+        state = LOW;
       }
       break;
-    case 2:
+    case LOW:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
       if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        state = IDLE;
       }
       else if(GetTime() - timer >= 300) {
         TxWriteLow();
         timer = GetTime();
-        state++;
+        state = SECOND_HIGH;
       }
       break;
-    case 3:
+    case SECOND_HIGH:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
 
       if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        state = IDLE;
       }
       else if(GetTime() - timer >= 25) {
         TxWriteHigh();
         timer = GetTime();
-        state++;
+        state = UART_INIT;
       }
 
       break;
-    case 4:
+    case UART_INIT:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
 
       if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        state = IDLE;
       }
       else if(GetTime() - timer >= 25) {
         InitUART();
         sendingByte = 0;
-        state++;
+        state = START_COMMUNICATION;
       }
 
       break;
-    case 5:
+    case START_COMMUNICATION:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
       if(stopSignal) {
         e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        state = IDLE;
       }
       else if(GetTime() - timer >= 10) {
         UARTWriteByte(initMsg[sendingByte++]);
         timer = GetTime();
         if(sendingByte == initMsgLen) {
+          uartClean();
           responseBufIndex = 0;
-          state++;
+          state = START_COMMUNICATION_RESPONSE;
         }
       }
       break;
-    case 6:
+    case START_COMMUNICATION_RESPONSE:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
@@ -177,9 +195,12 @@ void bus_tick(bool initSignal, bool stopSignal) {
       }
 
       if(GetTime() - timer > 100) {
-        stopping = false;
         e.err = BUS_INIT_ERROR; error(e);
-        state = 0;
+        if(stopping) {
+          stopping = false;
+          e.msg = BUS_STOP_SUCCESS; message(e);
+        }
+        state = IDLE;
       }
       else if(UARTBytesAvailable()) {
         responseBuf[responseBufIndex++] = UARTReadByte();
@@ -193,18 +214,18 @@ void bus_tick(bool initSignal, bool stopSignal) {
               
               sendingCmd = subsCount ? subs[sendingSub] : 0;
             }
-            state++;
+            state = RESPONSE_DELAY;
           }
           else {
             stopping = false;
             e.err = BUS_INIT_ERROR; error(e);
-            state = 0;
+            state = IDLE;
           }
         }
       }
 
       break;
-    case 7:
+    case RESPONSE_DELAY:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
       
@@ -215,12 +236,12 @@ void bus_tick(bool initSignal, bool stopSignal) {
       if(GetTime() - timer >= 100) {
         sendingByte = 0;
         if(stopping)
-          state = 10;
+          state = STOP_COMMUNICATION;
         else
-          state++;
+          state = SENSOR_REQUEST;
       }
       break;
-    case 8:
+    case SENSOR_REQUEST:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
       
@@ -232,12 +253,13 @@ void bus_tick(bool initSignal, bool stopSignal) {
         UARTWriteByte(cmds[sendingCmd].bytes[sendingByte++]);
         timer = GetTime();
         if(sendingByte == 6) {
+          uartClean();
           responseBufIndex = 0;
-          state++;
+          state = SENSOR_RESPONSE;
         }
       }
       break;
-    case 9:
+    case SENSOR_RESPONSE:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
       
@@ -246,13 +268,11 @@ void bus_tick(bool initSignal, bool stopSignal) {
       }
       
       if(GetTime() - timer > 60) {
-        // Чистим входной буфер
-        UARTReadBytes(responseBuf, UARTBytesAvailable());
         sendingByte = 0;
         if(stopping)
-          state = 10;
+          state = STOP_COMMUNICATION;
         else
-          state = 8;
+          state = SENSOR_REQUEST;
       }
       else if(UARTBytesAvailable()) {
         responseBuf[responseBufIndex++] = UARTReadByte();
@@ -277,18 +297,18 @@ void bus_tick(bool initSignal, bool stopSignal) {
               sendingCmd = 0;
           }
 
-          state = 7;
+          state = RESPONSE_DELAY;
         }
         
       }
       break;
 
-    case 10:
+    case STOP_COMMUNICATION:
       if(initSignal) {
-        // ???
+        e.err = BUS_INIT_STOP_PROGRESS; error(e);
       }
       if(stopSignal) {
-        // ???
+        e.err = BUS_STOP_PROGRESS; error(e);
       }
 
       if(GetTime() - timer >= 10) {
@@ -296,31 +316,37 @@ void bus_tick(bool initSignal, bool stopSignal) {
         timer = GetTime();
         if(sendingByte == stopMsgLen) {
           responseBufIndex = 0;
-          state++;
+          state = STOP_COMMUNICATION_RESPONSE;
         }
       }
       break;
-    case 11:
+    case STOP_COMMUNICATION_RESPONSE:
       if(initSignal) {
-        // ???
+        e.err = BUS_INIT_STOP_PROGRESS; error(e);
       }
       if(stopSignal) {
-        // ???
+        e.err = BUS_STOP_PROGRESS; error(e);
       }
 
       if(GetTime() - timer > 100) {
         stopping = false;
-        e.msg = BUS_STOP_SUCCESS; message(e);
-        state = 0;
+        e.err = BUS_STOP_ERROR; error(e);
+        state = IDLE;
       }
       else if(UARTBytesAvailable()) {
         responseBuf[responseBufIndex++] = UARTReadByte();
         if(responseBufIndex == 12) {
           timer = GetTime();
-          
           stopping = false;
-          e.msg = BUS_STOP_SUCCESS; message(e);
-          state = 0;
+          
+          if(responseBuf[5+3] == 0xC2) {
+            e.msg = BUS_STOP_SUCCESS; message(e);
+            state = IDLE;
+          }
+          else {
+            e.err = BUS_STOP_ERROR; error(e);
+            state = IDLE;
+          }
         }
       }
 

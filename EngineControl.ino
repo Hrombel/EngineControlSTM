@@ -77,13 +77,6 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
       }
     }
   }
-  // else if(res == ENGINE_ERROR) {
-  //   if(event.err == STARTER_FATAL_FAILURE) {
-  //     if(state != 0) {
-  //       BusStop();
-  //     }
-  //   }
-  // }
 
   if(res == ENGINE_MESSAGE) {
     serverClients[0].printf("ENGINE MESSAGE: %d\n\r", event.msg);
@@ -162,7 +155,7 @@ void setup() {
   pinMode(STARTER_PIN, OUTPUT);
   digitalWrite(IGNITION_PIN, LOW);
   pinMode(IGNITION_PIN, OUTPUT);
-
+  
   logger->begin(BAUD_LOGGER);
   logger->println("\n\nUsing Serial1 for logging");
 
