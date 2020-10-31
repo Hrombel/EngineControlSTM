@@ -16,13 +16,10 @@
 #endif
 
 #define BAUD_LOGGER 115200
-#define RXBUFFERSIZE 1024
 
 ////////////////////////////////////////////////////////////
 
 #define logger (&Serial1)
-
-#define DATA_BUF_SIZE  1024 // bytes
 
 //how many clients should be able to telnet to this ESP8266
 #define MAX_SRV_CLIENTS 1
@@ -47,19 +44,55 @@ HBusCmd busHandler = 0;
 
 static int rpm = 0;
 
+static const char* busMessages[] = {
+  "",
+  "Connected to ECU",
+  "Disconnected from ECU"
+};
+static const char* busErrors[] = {
+  "",
+  "Falied to connect to ECU",
+  "Cannot subscribe to invalid sensor",
+  "Bus is already in connecting process",
+  "Bus is already initialized",
+  "Bus is already stopped",
+  "Failed to stop bus connection",
+  "Cannot init bus while stopping"
+};
+
+static const char* engineMessages[] = {
+  "",
+  "Engine started",
+  "Engine stopped",
+  "Ignition enabled",
+  "Ignition disabled",
+};
+static const char* engineErrors[] = {
+  "",
+  "Cannot start the engine",
+  "Engine stalled",
+  "Can't enable starter without ignition",
+  "Can't enable starter while engine is working",
+  "Engine is already stopped",
+  "Engine is in manual mode",
+  "Engine start is in progress",
+  "Engine switched to manual",
+  "Engine start is aborted"
+};
+
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
   if(res == BUS_MESSAGE) {
     if(event.msg == BUS_STOP_SUCCESS) {
       state = 0;
     }
-    serverClients[0].printf("BUS MESSAGE: %d\n\r", event.msg);
+    serverClients[0].printf("MSG: %s\n\r", busMessages[event.msg]);
   }
   else if(res == BUS_ERROR) {
     if(event.err == BUS_INIT_ERROR) {
       EngineStop("password");
     }
     
-    serverClients[0].printf("BUS ERROR: %d\n\r", event.err);
+    serverClients[0].printf("ERR: %s\n\r", busErrors[event.err]);
   }
 
   return false;
@@ -79,10 +112,10 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
   }
 
   if(res == ENGINE_MESSAGE) {
-    serverClients[0].printf("ENGINE MESSAGE: %d\n\r", event.msg);
+    serverClients[0].printf("MSG: %s\n\r", engineMessages[event.msg]);
   }
   else {
-    serverClients[0].printf("ENGINE ERROR: %d\n\r", event.err);
+    serverClients[0].printf("MSG: %s\n\r", engineErrors[event.err]);
   }
 
 	return false;
