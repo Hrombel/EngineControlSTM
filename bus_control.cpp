@@ -92,9 +92,9 @@ bool BusSubscribe(BusSensor sensor) {
 
 inline void uartClean() {
   avail = UARTBytesAvailable();
-  if(avail) {
+  while(avail > 0) {
     // Чистим входной буфер
-    UARTReadBytes(responseBuf, avail);
+    avail -= UARTReadBytes(responseBuf, avail < RX_BUFFER_SIZE ? avail : RX_BUFFER_SIZE);
   }
 }
 

@@ -28,9 +28,7 @@
 /* Минимальные обороты холостого хода двигателя */
 #define IDLING_RPM			900
 /* Размер буфера для приема данных по UART */
-#define RX_BUFFER_SIZE      128
-/* Размер софтварного буфера, в случае если указан размер более 128 байт */
-#define SOFT_RX_BUFFER_SIZE RX_BUFFER_SIZE > 128 ? RX_BUFFER_SIZE - 128 : 0
+#define RX_BUFFER_SIZE      32
 
 
 
@@ -42,11 +40,16 @@
 #define TxSetOutput() pinMode(TX_PIN, OUTPUT)
 #define TxWriteHigh() digitalWrite(TX_PIN, HIGH)
 #define TxWriteLow() digitalWrite(TX_PIN, LOW)
-#define InitUART() Serial.begin(10400); if(SOFT_RX_BUFFER_SIZE) Serial.setRxBufferSize(SOFT_RX_BUFFER_SIZE)
 #define UARTWriteByte(byte) Serial.write(byte)
 #define UARTReadByte() Serial.read()
 #define UARTBytesAvailable() Serial.available()
 #define UARTReadBytes(buf, len) Serial.readBytes(buf, len)
+
+#if RX_BUFFER_SIZE > 64
+#define InitUART() Serial.begin(10400); Serial.setRxBufferSize(RX_BUFFER_SIZE - 64)
+#else
+#define InitUART() Serial.begin(10400)
+#endif
 
 
 #endif /* INC_SETTINGS_H_ */
