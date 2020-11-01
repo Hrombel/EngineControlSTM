@@ -10,6 +10,12 @@
 #include "bus_control.h"
 
 
+#define IDLE            0
+#define IGNITION        1
+#define BUS_INIT_START  2
+#define WAIT_ECU_READY  3
+#define BUS_WORKING     4
+
 #ifndef STASSID
 #define STASSID "SevenEye"
 #define STAPSK  "DiTaKsA712892"
@@ -32,7 +38,7 @@ WiFiServer server(port);
 WiFiClient serverClients[MAX_SRV_CLIENTS];
 
 unsigned long long timer;
-char state = 0;
+char state = IDLE;
 char cmd = 0;
 
 HCMD cmdHandler = 0;
@@ -90,16 +96,16 @@ bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEven
 
   if(res == BUS_MESSAGE) {
     if(event.msg == BUS_STOP_SUCCESS) {
-      state = 0;
+      state = IDLE;
     }
   }
   else if(res == BUS_ERROR) {
     if(event.err == BUS_INIT_ERROR) {
-      state = 0;
+      state = IDLE;
       EngineStop("password");
     }
     else if(event.err == BUS_STOP_ERROR) {
-      state = 0;
+      state = IDLE;
     }
   }
 
@@ -111,16 +117,19 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
     serverClients[0].printf("MSG: %s\n\r", engineMessages[event.msg]);
   }
   else {
-    serverClients[0].printf("MSG: %s\n\r", engineErrors[event.err]);
+    serverClients[0].printf("ERR: %s\n\r", engineErrors[event.err]);
   }
 
   if(res == ENGINE_MESSAGE) {
     if(event.msg == ENGINE_IGNITION_ON) {
-      if(state == 0)
-        state = 1;
+      if(state == IGNITION)
+        state = BUS_INIT_START;
     }
     else if(event.msg == ENGINE_IGNITION_OFF) {
-      if(state != 0) {
+      if(state == IGNITION) {
+        state = IDLE;
+      }
+      else if(state == WAIT_ECU_READY) {
         BusStop();
       }
     }
@@ -166,23 +175,21 @@ int GetRPM() {
 void ownTick() {
   switch (state)
   {
-  case 0:
+  case IDLE:
     break;
-  case 1:
+  case IGNITION:
+    break;
+  case BUS_INIT_START:
     timer = GetTime();
-    state++;
+    state = WAIT_ECU_READY;
     break;
-  case 2:
+  case WAIT_ECU_READY:
     if(GetTime() - timer > 3000) {
       BusInit();
-      state = 3;
+      state = BUS_WORKING;
     }
     break;
-  case 3:
-
-    break;
-  
-  default:
+  case BUS_WORKING:
     break;
   }
 }
@@ -285,10 +292,12 @@ void loop() {
     {
     case 's':
       serverClients[0].println("Sending start command...");
+      state = IGNITION;
       EngineStart("password");
       break;
     case 'e':
       serverClients[0].println("Sending stop command...");
+      state = IDLE;
       EngineStop("password");
       break;
     
