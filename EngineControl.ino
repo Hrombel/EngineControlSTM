@@ -45,60 +45,75 @@ HBusCmd busHandler = 0;
 static int rpm = 0;
 
 static const char* busMessages[] = {
-  "",
-  "Connected to ECU",
-  "Disconnected from ECU"
+  "",                     // 0
+  "Connected to ECU",     // 1
+  "Disconnected from ECU" // 2
 };
 static const char* busErrors[] = {
-  "",
-  "Falied to connect to ECU",
-  "Cannot subscribe to invalid sensor",
-  "Bus is already in connecting process",
-  "Bus is already initialized",
-  "Bus is already stopped",
-  "Failed to stop bus connection",
-  "Cannot init bus while stopping"
+  "",                                     // 0
+  "Falied to connect to ECU",             // 1
+  "Cannot subscribe to invalid sensor",   // 2
+  "Bus is already in connecting process", // 3
+  "Bus is already initialized",           // 4
+  "Bus is already stopped",               // 5
+  "Failed to stop bus connection",        // 6
+  "Cannot init bus while stopping"        // 7
 };
 
 static const char* engineMessages[] = {
-  "",
-  "Engine started",
-  "Engine stopped",
-  "Ignition enabled",
-  "Ignition disabled",
+  "",                   // 0
+  "Engine started",     // 1
+  "Engine stopped",     // 2
+  "Ignition enabled",   // 3
+  "Ignition disabled",  // 4
 };
 static const char* engineErrors[] = {
-  "",
-  "Cannot start the engine",
-  "Engine stalled",
-  "Can't enable starter without ignition",
-  "Can't enable starter while engine is working",
-  "Engine is already stopped",
-  "Engine is in manual mode",
-  "Engine start is in progress",
-  "Engine switched to manual",
-  "Engine start is aborted"
+  "",                                             // 0
+  "Cannot start the engine",                      // 1
+  "Engine stalled",                               // 2
+  "Can't enable starter without ignition",        // 3
+  "Can't enable starter while engine is working", // 4
+  "Engine is already stopped",                    // 5
+  "Engine is in manual mode",                     // 6
+  "Engine start is in progress",                  // 7
+  "Engine switched to manual",                    // 8
+  "Engine start is aborted"                       // 9
 };
 
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
   if(res == BUS_MESSAGE) {
+    serverClients[0].printf("MSG: %s\n\r", busMessages[event.msg]);
+  }
+  else {
+    serverClients[0].printf("ERR: %s\n\r", busErrors[event.err]);
+  }
+
+  if(res == BUS_MESSAGE) {
     if(event.msg == BUS_STOP_SUCCESS) {
       state = 0;
     }
-    serverClients[0].printf("MSG: %s\n\r", busMessages[event.msg]);
   }
   else if(res == BUS_ERROR) {
     if(event.err == BUS_INIT_ERROR) {
+      state = 0;
       EngineStop("password");
     }
-    
-    serverClients[0].printf("ERR: %s\n\r", busErrors[event.err]);
+    else if(event.err == BUS_STOP_ERROR) {
+      state = 0;
+    }
   }
 
   return false;
 }
 
 bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event) {
+  if(res == ENGINE_MESSAGE) {
+    serverClients[0].printf("MSG: %s\n\r", engineMessages[event.msg]);
+  }
+  else {
+    serverClients[0].printf("MSG: %s\n\r", engineErrors[event.err]);
+  }
+
   if(res == ENGINE_MESSAGE) {
     if(event.msg == ENGINE_IGNITION_ON) {
       if(state == 0)
@@ -109,13 +124,6 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
         BusStop();
       }
     }
-  }
-
-  if(res == ENGINE_MESSAGE) {
-    serverClients[0].printf("MSG: %s\n\r", engineMessages[event.msg]);
-  }
-  else {
-    serverClients[0].printf("MSG: %s\n\r", engineErrors[event.err]);
   }
 
 	return false;
