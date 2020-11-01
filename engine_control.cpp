@@ -71,21 +71,21 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 		case A_ENGINE_START: // Автоматический запуск двигателя
 			SetIgnitionFlag(true);
 			ignTimer = GetTime();
-			e.msg = ENGINE_IGNITION_ON; message(e);
 			state = A_IGNITION_AWAIT;
+			e.msg = ENGINE_IGNITION_ON; message(e);
 			break;
 		case A_IGNITION_AWAIT:
 			if (sig_engine_stop) {
 				SetIgnitionFlag(false);
+				state = IDLE;
 				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.err = ENGINE_START_ABORTED; error(e);
 				e.msg = ENGINE_STOP_OK; message(e);
-				state = IDLE;
 				break;
 			}
 			else if (sig_ign_on) {
-				e.err = ENGINE_SWITCHED_TO_MANUAL; error(e);
 				state = IGNITION;
+				e.err = ENGINE_SWITCHED_TO_MANUAL; error(e);
 				break;
 			}
 			else if (sig_starter_on) {
@@ -109,10 +109,10 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 			if (sig_engine_stop) {
 				SetStarterFlag(false);
 				SetIgnitionFlag(false);
+				state = IDLE;
 				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.err = ENGINE_START_ABORTED; error(e);
 				e.msg = ENGINE_STOP_OK; message(e);
-				state = IDLE;
 				break;
 			}
 			else if (sig_ign_on) {
@@ -135,22 +135,22 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 
 			if (GetRPM() >= IDLING_RPM) {
 				SetStarterFlag(false);
-				e.msg = ENGINE_START_OK; message(e);
 				state = A_ENGINE_WORKING;
+				e.msg = ENGINE_START_OK; message(e);
 			}
 			else if (GetTime() - startTimer >= STARTER_TIME) {
 				SetStarterFlag(false);
 				SetIgnitionFlag(false);
+				state = IDLE; // Отказ
 				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.err = STARTER_FAILURE; error(e);
-				state = IDLE; // Отказ
 			}
 
 			break;
 		case A_ENGINE_WORKING: // Работа двигателя, когда мы выполнили автоматический запуск
 			if (sig_ign_on) {
-				e.err = ENGINE_SWITCHED_TO_MANUAL; error(e);
 				state = IGNITION;
+				e.err = ENGINE_SWITCHED_TO_MANUAL; error(e);
 				break;
 			}
 			else if (sig_starter_on) {
@@ -161,17 +161,17 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 			}
 			else if (sig_engine_stop) {
 				SetIgnitionFlag(false);
+				state = IDLE;
 				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.msg = ENGINE_STOP_OK; message(e);
-				state = IDLE;
 				break;
 			}
 
 			if (!GetRPM()) {
 				SetIgnitionFlag(false);
+				state = IDLE;
 				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.err = ENGINE_STALLED; error(e);
-				state = IDLE;
 			}
 			break;
 	}
