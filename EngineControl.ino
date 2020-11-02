@@ -72,6 +72,8 @@ static const char* engineMessages[] = {
   "Engine stopped",     // 2
   "Ignition enabled",   // 3
   "Ignition disabled",  // 4
+  "Starter enabled",    // 5
+  "Starter disabled",   // 6
 };
 static const char* engineErrors[] = {
   "",                                             // 0
@@ -83,7 +85,8 @@ static const char* engineErrors[] = {
   "Engine is in manual mode",                     // 6
   "Engine start is in progress",                  // 7
   "Engine switched to manual",                    // 8
-  "Engine start is aborted"                       // 9
+  "Engine start is aborted",                      // 9
+  "Engine already started",                       // 10
 };
 
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
@@ -126,10 +129,10 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
         state = BUS_INIT_START;
     }
     else if(event.msg == ENGINE_IGNITION_OFF) {
-      if(state == IGNITION) {
+      if(state == IGNITION || state == BUS_INIT_START || state == WAIT_ECU_READY) {
         state = IDLE;
       }
-      else if(state == WAIT_ECU_READY) {
+      else if(state == WAIT_ECU_READY || state == BUS_WORKING) {
         BusStop();
       }
     }
@@ -185,8 +188,8 @@ void ownTick() {
     break;
   case WAIT_ECU_READY:
     if(GetTime() - timer > 3000) {
-      BusInit();
       state = BUS_WORKING;
+      BusInit();
     }
     break;
   case BUS_WORKING:
@@ -292,12 +295,14 @@ void loop() {
     {
     case 's':
       serverClients[0].println("Sending start command...");
-      state = IGNITION;
+      if(state == IDLE)
+        state = IGNITION;
       EngineStart("password");
       break;
     case 'e':
       serverClients[0].println("Sending stop command...");
-      state = IDLE;
+      if(state == BUS_INIT_START || state == IGNITION)
+        state = IDLE;
       EngineStop("password");
       break;
     

@@ -11,6 +11,10 @@ typedef enum EngineMessage {
 	ENGINE_IGNITION_ON,
 	/* Зажигание только что выключено */
 	ENGINE_IGNITION_OFF,
+	/* Стартер только что включен */
+	ENGINE_STARTER_ON,
+	/* Стартер только что выключен */
+	ENGINE_STARTER_OFF,
 
 } EngineMessage;
 
@@ -34,6 +38,8 @@ typedef enum EngineError {
 	ENGINE_SWITCHED_TO_MANUAL,
 	/* Запуск двигателя был отменен */
 	ENGINE_START_ABORTED,
+	/* Двигатель уже запущен */
+	ENGINE_ALREADY_STARTED,
 	
 } EngineError;
 

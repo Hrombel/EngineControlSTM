@@ -104,6 +104,7 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 			SetStarterFlag(true);
 			startTimer = GetTime();
 			state = A_ENGINE_STARTING;
+			e.msg = ENGINE_STARTER_ON; message(e);
 			break;
 		case A_ENGINE_STARTING:
 			if (sig_engine_stop) {
@@ -111,6 +112,7 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 				SetIgnitionFlag(false);
 				state = IDLE;
 				e.msg = ENGINE_IGNITION_OFF; message(e);
+				e.msg = ENGINE_STARTER_OFF; message(e);
 				e.err = ENGINE_START_ABORTED; error(e);
 				e.msg = ENGINE_STOP_OK; message(e);
 				break;
@@ -122,6 +124,7 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 				else {
 					SetStarterFlag(false);
 					state = IGNITION;
+					e.msg = ENGINE_STARTER_OFF; message(e);
 				}
 				e.err = ENGINE_SWITCHED_TO_MANUAL; error(e);
 				break;
@@ -136,12 +139,14 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 			if (GetRPM() >= IDLING_RPM) {
 				SetStarterFlag(false);
 				state = A_ENGINE_WORKING;
+				e.msg = ENGINE_STARTER_OFF; message(e);
 				e.msg = ENGINE_START_OK; message(e);
 			}
 			else if (GetTime() - startTimer >= STARTER_TIME) {
 				SetStarterFlag(false);
 				SetIgnitionFlag(false);
 				state = IDLE; // Отказ
+				e.msg = ENGINE_STARTER_OFF; message(e);
 				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.err = STARTER_FAILURE; error(e);
 			}
@@ -157,7 +162,7 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 				e.err = STARTER_WHILE_WORKING; error(e);
 			}
 			else if (sig_engine_start) {
-				e.err = ENGINE_STARTING_PROGRESS; error(e);
+				e.err = ENGINE_ALREADY_STARTED; error(e);
 			}
 			else if (sig_engine_stop) {
 				SetIgnitionFlag(false);
