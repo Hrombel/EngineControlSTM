@@ -2,19 +2,6 @@
 #include "engine_control.h"
 #include "settings.h"
 
-#define IDLE                           0
-#define FIRST_HIGH 		                 1
-#define LOW 	                         2
-#define SECOND_HIGH 		               3
-#define UART_INIT 		                 4
-#define START_COMMUNICATION 		       5
-#define START_COMMUNICATION_RESPONSE	 6
-#define RESPONSE_DELAY		             7
-#define SENSOR_REQUEST 		             8
-#define SENSOR_RESPONSE	  	           9
-#define STOP_COMMUNICATION	          10
-#define STOP_COMMUNICATION_RESPONSE	  11
-
 typedef struct {
   const unsigned char bytes[6];
   const unsigned char responseLen;
@@ -65,7 +52,7 @@ static unsigned char sendingSub;
 static BusSensor sendingCmd;
 static unsigned char sendingByte;
 
-static int state = IDLE;
+static int state = 0;
 static unsigned long long timer;
 
 static BusEvent e;
@@ -101,92 +88,94 @@ inline void uartClean() {
 void bus_tick(bool initSignal, bool stopSignal) {
     switch (state)
     {
-    case IDLE:
+    case 0:
+      uartClean();
+
       if(stopSignal)
         { e.err = BUS_ALREADY_STOPPED; error(e); }
 
       if(initSignal)
-        state = FIRST_HIGH;
+        state = 1;
 
       break;
-    case FIRST_HIGH:
+    case 1:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
       if(stopSignal) {
-        state = IDLE;
+        state = 0;
         e.msg = BUS_STOP_SUCCESS; message(e);
       }
       else {
         timer = GetTime();
         TxSetOutput();
         TxWriteHigh();
-        state = LOW;
+        state = 2;
       }
       break;
-    case LOW:
+    case 2:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
       if(stopSignal) {
-        state = IDLE;
+        state = 0;
         e.msg = BUS_STOP_SUCCESS; message(e);
       }
       else if(GetTime() - timer >= 300) {
         TxWriteLow();
         timer = GetTime();
-        state = SECOND_HIGH;
+        state = 3;
       }
       break;
-    case SECOND_HIGH:
+    case 3:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
 
       if(stopSignal) {
-        state = IDLE;
+        state = 0;
         e.msg = BUS_STOP_SUCCESS; message(e);
       }
       else if(GetTime() - timer >= 25) {
         TxWriteHigh();
         timer = GetTime();
-        state = UART_INIT;
+        state = 4;
       }
 
       break;
-    case UART_INIT:
+    case 4:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
 
       if(stopSignal) {
-        state = IDLE;
+        state = 0;
         e.msg = BUS_STOP_SUCCESS; message(e);
       }
       else if(GetTime() - timer >= 25) {
         InitUART();
+        uartClean();
         sendingByte = 0;
-        state = START_COMMUNICATION;
+        state = 5;
       }
 
       break;
-    case START_COMMUNICATION:
+    case 5:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
       if(stopSignal) {
-        state = IDLE;
+        state = 0;
         e.msg = BUS_STOP_SUCCESS; message(e);
       }
       else if(GetTime() - timer >= 10) {
         UARTWriteByte(initMsg[sendingByte++]);
         timer = GetTime();
         if(sendingByte == initMsgLen) {
-          uartClean();
           responseBufIndex = 0;
-          state = START_COMMUNICATION_RESPONSE;
+          state = 6;
         }
       }
       break;
-    case START_COMMUNICATION_RESPONSE:
+    case 6:
       if(initSignal)
         { e.err = BUS_INIT_PROGRESS; error(e); }
       
@@ -195,7 +184,7 @@ void bus_tick(bool initSignal, bool stopSignal) {
       }
 
       if(GetTime() - timer > 100) {
-        state = IDLE;
+        state = 0;
         e.err = BUS_INIT_ERROR; error(e);
         if(stopping) {
           stopping = false;
@@ -208,7 +197,7 @@ void bus_tick(bool initSignal, bool stopSignal) {
           timer = GetTime();
 
           if(responseBuf[5+3] == 0xC1) {
-            state = RESPONSE_DELAY;
+            state = 7;
             if(!stopping) {
               e.msg = BUS_INIT_SUCCESS; message(e);
               sendingSub = 0;
@@ -218,14 +207,14 @@ void bus_tick(bool initSignal, bool stopSignal) {
           }
           else {
             stopping = false;
-            state = IDLE;
+            state = 0;
             e.err = BUS_INIT_ERROR; error(e);
           }
         }
       }
 
       break;
-    case RESPONSE_DELAY:
+    case 7:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
       
@@ -234,14 +223,15 @@ void bus_tick(bool initSignal, bool stopSignal) {
       }
 
       if(GetTime() - timer >= 100) {
+        uartClean();
         sendingByte = 0;
         if(stopping)
-          state = STOP_COMMUNICATION;
+          state = 10;
         else
-          state = SENSOR_REQUEST;
+          state = 8;
       }
       break;
-    case SENSOR_REQUEST:
+    case 8:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
       
@@ -253,13 +243,12 @@ void bus_tick(bool initSignal, bool stopSignal) {
         UARTWriteByte(cmds[sendingCmd].bytes[sendingByte++]);
         timer = GetTime();
         if(sendingByte == 6) {
-          uartClean();
           responseBufIndex = 0;
-          state = SENSOR_RESPONSE;
+          state = 9;
         }
       }
       break;
-    case SENSOR_RESPONSE:
+    case 9:
       if(initSignal)
         { e.err = BUS_ALREADY_INIT; error(e); }
       
@@ -270,9 +259,9 @@ void bus_tick(bool initSignal, bool stopSignal) {
       if(GetTime() - timer > 60) {
         sendingByte = 0;
         if(stopping)
-          state = STOP_COMMUNICATION;
+          state = 10;
         else
-          state = SENSOR_REQUEST;
+          state = 8;
       }
       else if(UARTBytesAvailable()) {
         responseBuf[responseBufIndex++] = UARTReadByte();
@@ -297,13 +286,13 @@ void bus_tick(bool initSignal, bool stopSignal) {
               sendingCmd = 0;
           }
 
-          state = RESPONSE_DELAY;
+          state = 7;
         }
         
       }
       break;
 
-    case STOP_COMMUNICATION:
+    case 10:
       if(initSignal) {
         e.err = BUS_INIT_STOP_PROGRESS; error(e);
       }
@@ -316,11 +305,11 @@ void bus_tick(bool initSignal, bool stopSignal) {
         timer = GetTime();
         if(sendingByte == stopMsgLen) {
           responseBufIndex = 0;
-          state = STOP_COMMUNICATION_RESPONSE;
+          state = 11;
         }
       }
       break;
-    case STOP_COMMUNICATION_RESPONSE:
+    case 11:
       if(initSignal) {
         e.err = BUS_INIT_STOP_PROGRESS; error(e);
       }
@@ -330,7 +319,7 @@ void bus_tick(bool initSignal, bool stopSignal) {
 
       if(GetTime() - timer > 100) {
         stopping = false;
-        state = IDLE;
+        state = 0;
         e.err = BUS_STOP_ERROR; error(e);
       }
       else if(UARTBytesAvailable()) {
@@ -338,13 +327,13 @@ void bus_tick(bool initSignal, bool stopSignal) {
         if(responseBufIndex == 12) {
           timer = GetTime();
           stopping = false;
-          
+
           if(responseBuf[5+3] == 0xC2) {
-            state = IDLE;
+            state = 0;
             e.msg = BUS_STOP_SUCCESS; message(e);
           }
           else {
-            state = IDLE;
+            state = 0;
             e.err = BUS_STOP_ERROR; error(e);
           }
         }

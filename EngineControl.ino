@@ -61,9 +61,10 @@ static const char* busErrors[] = {
   "Cannot subscribe to invalid sensor",   // 2
   "Bus is already in connecting process", // 3
   "Bus is already initialized",           // 4
-  "Bus is already stopped",               // 5
-  "Failed to stop bus connection",        // 6
-  "Cannot init bus while stopping"        // 7
+  "Bus is already in stopping proceses",  // 5
+  "Bus is already stopped",               // 6
+  "Failed to stop bus connection",        // 7
+  "Cannot init bus while stopping"        // 8
 };
 
 static const char* engineMessages[] = {

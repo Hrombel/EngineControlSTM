@@ -6,7 +6,8 @@
                 "C:\\Users\\Администратор\\AppData\\Local\\Arduino15\\packages\\esp8266\\tools\\**",
                 "C:\\Users\\Администратор\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.7.3\\**",
                 "/Users/ameresp/Library/Arduino15/packages/esp8266/hardware/esp8266/2.7.0/**",
-                "/Users/ameresp/Library/Arduino15/packages/esp8266/tools/**"
+                "/Users/ameresp/Library/Arduino15/packages/esp8266/tools/**",
+                "/Users/ameresp/Library/Arduino15/packages/esp8266/hardware/esp8266/2.7.4/**"
             ],
             "forcedInclude": [],
             "intelliSenseMode": "msvc-x64",
