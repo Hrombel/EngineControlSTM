@@ -222,7 +222,7 @@ void bus_tick(bool initSignal, bool stopSignal) {
         stopping = true;
       }
 
-      if(GetTime() - timer >= 100) {
+      if(GetTime() - timer > 100) {
         uartClean();
         sendingByte = 0;
         if(stopping)
@@ -323,7 +323,9 @@ void bus_tick(bool initSignal, bool stopSignal) {
         e.err = BUS_STOP_ERROR; error(e);
       }
       else if(UARTBytesAvailable()) {
-        responseBuf[responseBufIndex++] = UARTReadByte();
+        uint8_t v = UARTReadByte();
+        log(v);
+        responseBuf[responseBufIndex++] = v;
         if(responseBufIndex == 12) {
           timer = GetTime();
           stopping = false;

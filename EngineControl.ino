@@ -90,6 +90,10 @@ static const char* engineErrors[] = {
   "Engine already started",                       // 10
 };
 
+void log(uint8_t v) {
+  serverClients[0].printf("%x ", v);
+}
+
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
   if(res == BUS_MESSAGE) {
     serverClients[0].printf("MSG: %s\n\r", busMessages[event.msg]);
