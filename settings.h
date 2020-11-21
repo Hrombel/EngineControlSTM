@@ -32,23 +32,23 @@
 
 
 
-#define EN_PIN 5
-#define TX_PIN 1
-#define STARTER_PIN 12
-#define IGNITION_PIN 14
+#define EN_PIN PB12
+#define TX_PIN PA9
+#define STARTER_PIN PB14
+#define IGNITION_PIN PB15
 
 #define TxSetOutput() pinMode(TX_PIN, OUTPUT)
 #define TxWriteHigh() digitalWrite(TX_PIN, HIGH)
 #define TxWriteLow() digitalWrite(TX_PIN, LOW)
-#define UARTWriteByte(byte) Serial.write(byte)
-#define UARTReadByte() Serial.read()
-#define UARTBytesAvailable() Serial.available()
-#define UARTReadBytes(buf, len) Serial.readBytes(buf, len)
+#define UARTWriteByte(byte) Serial1.write(byte)
+#define UARTReadByte() Serial1.read()
+#define UARTBytesAvailable() Serial1.available()
+#define UARTReadBytes(buf, len) Serial1.readBytes((char*)buf, len)
 
 #if RX_BUFFER_SIZE > 64
-#define InitUART() Serial.begin(10400); Serial.setRxBufferSize(RX_BUFFER_SIZE - 64)
+#define InitUART() Serial1.begin(10400); Serial1.setRxBufferSize(RX_BUFFER_SIZE - 64)
 #else
-#define InitUART() Serial.begin(19200)
+#define InitUART() Serial1.begin(19200)
 #endif
 
 void log(uint8_t);

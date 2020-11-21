@@ -1,6 +1,3 @@
-#include <ESP8266WiFi.h>
-#include <ArduinoOTA.h>
-
 #include <algorithm> // std::min
 
 #include "settings.h"
@@ -25,17 +22,14 @@
 
 ////////////////////////////////////////////////////////////
 
-#define logger (&Serial1)
+#define ecu Serial1
+#define user Serial
 
 //how many clients should be able to telnet to this ESP8266
 #define MAX_SRV_CLIENTS 1
 const char* ssid = STASSID;
 const char* password = STAPSK;
 
-const int port = 23;
-
-WiFiServer server(port);
-WiFiClient serverClients[MAX_SRV_CLIENTS];
 
 unsigned long long timer;
 char state = IDLE;
@@ -91,15 +85,15 @@ static const char* engineErrors[] = {
 };
 
 void log(uint8_t v) {
-  serverClients[0].printf("%x ", v);
+  user.printf("%x ", v);
 }
 
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
   if(res == BUS_MESSAGE) {
-    serverClients[0].printf("MSG: %s\n\r", busMessages[event.msg]);
+    user.printf("MSG: %s\n\r", busMessages[event.msg]);
   }
   else {
-    serverClients[0].printf("ERR: %s\n\r", busErrors[event.err]);
+    user.printf("ERR: %s\n\r", busErrors[event.err]);
   }
 
   if(res == BUS_MESSAGE) {
@@ -122,10 +116,10 @@ bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEven
 
 bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event) {
   if(res == ENGINE_MESSAGE) {
-    serverClients[0].printf("MSG: %s\n\r", engineMessages[event.msg]);
+    user.printf("MSG: %s\n\r", engineMessages[event.msg]);
   }
   else {
-    serverClients[0].printf("ERR: %s\n\r", engineErrors[event.err]);
+    user.printf("ERR: %s\n\r", engineErrors[event.err]);
   }
 
   if(res == ENGINE_MESSAGE) {
@@ -148,7 +142,7 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
 
 bool UpdateSensorCallback(HBusSub id, BusSensor sensor, int value) {
   if(sensor == 0) {
-    serverClients[0].printf("RPM: %d\n\r", value);
+    user.printf("RPM: %d\n\r", value);
     rpm = value;
   }
 
@@ -203,7 +197,6 @@ void ownTick() {
 }
 
 void setup() {
-  
   pinMode(EN_PIN, OUTPUT);
   digitalWrite(EN_PIN, HIGH);
 
@@ -211,108 +204,32 @@ void setup() {
   pinMode(STARTER_PIN, OUTPUT);
   digitalWrite(IGNITION_PIN, LOW);
   pinMode(IGNITION_PIN, OUTPUT);
-  
-  logger->begin(BAUD_LOGGER);
-  logger->println("\n\nUsing Serial1 for logging");
 
-  logger->println(ESP.getFullVersion());
-
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  logger->print("\nConnecting to ");
-  logger->println(ssid);
-  while (WiFi.status() != WL_CONNECTED) {
-    logger->print('.');
-    delay(500);
-  }
-
-  ArduinoOTA.onStart([]() {
-    String type;
-    if (ArduinoOTA.getCommand() == U_FLASH) {
-      type = "sketch";
-    } else { // U_FS
-      type = "filesystem";
-    }
-
-    // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-    logger->println("Start updating " + type);
-  });
-  ArduinoOTA.onEnd([]() {
-    logger->println("\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    logger->printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    logger->printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) {
-      logger->println("Auth Failed");
-    } else if (error == OTA_BEGIN_ERROR) {
-      logger->println("Begin Failed");
-    } else if (error == OTA_CONNECT_ERROR) {
-      logger->println("Connect Failed");
-    } else if (error == OTA_RECEIVE_ERROR) {
-      logger->println("Receive Failed");
-    } else if (error == OTA_END_ERROR) {
-      logger->println("End Failed");
-    }
-  });
-  ArduinoOTA.begin();
-
-  //start server
-  server.begin();
-  server.setNoDelay(true);
-
-  logger->print("Ready! Use 'telnet ");
+  user.begin(115200);
 
   BusConnectorSubscribe(0, UpdateSensorCallback);
 }
 
 void loop() {
-  ArduinoOTA.handle();
-  //check if there are any new clients
-  if (server.hasClient()) {
-    //find free/disconnected spot
-    int i;
-    for (i = 0; i < MAX_SRV_CLIENTS; i++) {
-      if (!serverClients[i]) { // equivalent to !serverClients[i].connected()
-        serverClients[i] = server.available();
-        serverClients[i].println("List of commands:\n\rs - start engine\n\re - stop engine");
-        break;
-      }
-    }
-
-    //no free/disconnected spot so reject
-    if (i == MAX_SRV_CLIENTS) {
-      server.available().println("busy");
-      // hints: server.available() is a WiFiClient with short-term scope
-      // when out of scope, a WiFiClient will
-      // - flush() - all data will be sent
-      // - stop() - automatically too
-      logger->printf("server is busy with %d active connections\n", MAX_SRV_CLIENTS);
-    }
-  }
-
-
-  while (serverClients[0].available()) {
-    cmd = serverClients[0].read();
+  while (user.available()) {
+    cmd = user.read();
     switch (cmd)
     {
     case 's':
-      serverClients[0].println("Sending start command...");
+      user.println("Sending start command...");
       if(state == IDLE)
         state = IGNITION;
       EngineStart("password");
       break;
     case 'e':
-      serverClients[0].println("Sending stop command...");
+      user.println("Sending stop command...");
       if(state == BUS_INIT_START || state == IGNITION)
         state = IDLE;
       EngineStop("password");
       break;
     
     default:
-      serverClients[0].println("Unrecognized input");
+      user.println("Unrecognized input");
       break;
     }
   }
