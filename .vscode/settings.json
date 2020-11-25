@@ -23,6 +23,8 @@
         "string": "cpp",
         "unordered_map": "cpp",
         "istream": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "string_view": "cpp",
+        "xlocale": "cpp"
     }
 }

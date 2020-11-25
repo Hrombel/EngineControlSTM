@@ -113,7 +113,9 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 				state = IDLE;
 				e.msg = ENGINE_IGNITION_OFF; message(e);
 				e.msg = ENGINE_STARTER_OFF; message(e);
+
 				e.err = ENGINE_START_ABORTED; error(e);
+				e.err = ENGINE_START_FAIL; error(e);
 				e.msg = ENGINE_STOP_OK; message(e);
 				break;
 			}
@@ -148,7 +150,7 @@ void engine_control_tick(bool sig_ign_on, bool sig_starter_on, bool sig_engine_s
 				state = IDLE; // Отказ
 				e.msg = ENGINE_STARTER_OFF; message(e);
 				e.msg = ENGINE_IGNITION_OFF; message(e);
-				e.err = STARTER_FAILURE; error(e);
+				e.err = ENGINE_START_FAIL; error(e);
 			}
 
 			break;

@@ -17,6 +17,8 @@ typedef enum {
     BUS_INIT_SUCCESS,
     /* Соединение с ЭБУ разорвано успешо */
     BUS_STOP_SUCCESS,
+    /* Начался период ожидания между ответом и запросом */
+    BUS_REQUEST_DELAY_START,
 
 } BusMessage;
 

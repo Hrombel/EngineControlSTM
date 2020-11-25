@@ -1,6 +1,6 @@
 {
     "board": "STM32:stm32:GenF1",
-    "configuration": "pnum=BLUEPILL_F103C8,upload_method=hidMethod,xserial=generic,usb=CDCgen,xusb=FS,opt=osstd,rtlib=nano",
+    "configuration": "pnum=BLUEPILL_F103CB,upload_method=hidMethod,xserial=generic,usb=CDCgen,xusb=FS,opt=osstd,rtlib=nano",
     "port": "COM14",
-    "sketch": "KLineTalker.ino"
+    "sketch": "EngineControlSTM.ino"
 }

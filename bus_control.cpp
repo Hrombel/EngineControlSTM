@@ -204,12 +204,19 @@ void bus_tick(bool initSignal, bool stopSignal) {
               
               sendingCmd = subsCount ? subs[sendingSub] : 0;
             }
+            
+            e.msg = BUS_REQUEST_DELAY_START; message(e);
           }
           else {
-            stopping = false;
             state = 0;
             e.err = BUS_INIT_ERROR; error(e);
+
+            if(stopping) {
+              stopping = false;
+              e.msg = BUS_STOP_SUCCESS; message(e);
+            }
           }
+            
         }
       }
 

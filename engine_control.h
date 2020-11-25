@@ -20,8 +20,8 @@ typedef enum EngineMessage {
 
 typedef enum EngineError {
 	ERROR_NONE,
-	/* Неудачная попытка запуска двигателя */
-	STARTER_FAILURE,
+	/* Не удалось запустить двигатель */
+	ENGINE_START_FAIL,
 	/* Двигатель заглох */
 	ENGINE_STALLED,
 	/* Нельзя запускать стартер, не включив зажигание */
