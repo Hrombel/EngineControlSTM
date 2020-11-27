@@ -50,6 +50,7 @@ static const char* busMessages[] = {
   "Connected to ECU",      // 1
   "Disconnected from ECU", // 2
   "",                      // 3
+  "",                      // 4
 };
 static const char* busErrors[] = {
   "",                                     // 0
@@ -90,8 +91,8 @@ void log(uint8_t v) {
   user.printf("%x ", v);
 }
 
-bool canPublish = false;
-#define pendingMsgLen 3
+bool allowExpensiveOps = true;
+#define pendingMsgLen 5
 struct {
   char topic[20];
   char message[50];
@@ -99,7 +100,11 @@ struct {
 pendingMsgs[pendingMsgLen];
 byte pendingMsgIndex = 0;
 
-void publishDelayed(char* topic, char* msg) {
+void safePublish(char* topic, char* msg) {
+  if(allowExpensiveOps) {
+    mqtt.publish(topic, msg);
+    return;
+  }
   if(pendingMsgIndex == pendingMsgLen) return;
 
   sprintf(pendingMsgs[pendingMsgIndex].topic, "%s", topic);
@@ -110,7 +115,7 @@ void publishDelayed(char* topic, char* msg) {
 
 bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEvent event) {
   if(res == BUS_MESSAGE) {
-    if(event.msg != BUS_REQUEST_DELAY_START)
+    if(event.msg != BUS_REQUEST_DELAY_START && event.msg != BUS_REQUEST_DELAY_STOP)
       user.printf("MSG: %s\n\r", busMessages[event.msg]);
   }
   else {
@@ -119,10 +124,14 @@ bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEven
 
   if(res == BUS_MESSAGE) {
     if(event.msg == BUS_STOP_SUCCESS) {
+      allowExpensiveOps = true;
       state = IDLE;
     }
     else if(event.msg == BUS_REQUEST_DELAY_START) {
-      canPublish = true;
+      allowExpensiveOps = true;
+    }
+    else if(event.msg == BUS_REQUEST_DELAY_STOP) {
+      allowExpensiveOps = false;
     }
   }
   else if(res == BUS_ERROR) {
@@ -147,9 +156,14 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
   if(res == ENGINE_MESSAGE) {
     user.printf("MSG: %s\n\r", engineMessages[event.msg]);
     
-    if(event.msg == ENGINE_START_OK || event.msg == ENGINE_STOP_OK) {
+    if(event.msg == ENGINE_START_OK) {
       carResult = CAR_OK;
-      publishDelayed("matiz/car", "success");
+      safePublish("matiz/car", "success");
+    }
+    else if(event.msg == ENGINE_STOP_OK) {
+      carResult = CAR_OK;
+      allowExpensiveOps = true;
+      safePublish("matiz/car", "success");
     }
   }
   else {
@@ -157,7 +171,7 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
 
     if(event.err == ENGINE_START_FAIL) {
       carResult = CAR_FAIL;
-      publishDelayed("matiz/car", "error");
+      safePublish("matiz/car", "error");
     }
   }
 
@@ -234,12 +248,15 @@ void ownTick() {
     break;
   }
 
-  if(canPublish) {
-    canPublish = false;
-    for(int i = 0; i < pendingMsgIndex; i++) {
-      mqtt.publish(pendingMsgs[i].topic, pendingMsgs[i].message);
+  static uint32_t loopStart;
+  if(allowExpensiveOps) {
+
+    if(pendingMsgIndex) {
+      pendingMsgIndex--;
+      loopStart = millis();
+      mqtt.publish(pendingMsgs[pendingMsgIndex].topic, pendingMsgs[pendingMsgIndex].message);
+      user.printf("Time Publish: %d\n\r", millis() - loopStart);
     }
-    pendingMsgIndex = 0;
   }
 
 }
@@ -263,6 +280,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
       user.println("Sending start command...");
       if(state == IDLE)
         state = IGNITION;
+        
+      allowExpensiveOps = false;
       EngineStart("password");
     }
     else if(strncmp((char*)payload, "StopEngine", len) == 0) {
@@ -274,7 +293,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
       EngineStop("password");
     }
     else {
-      mqtt.publish("matiz/car", "INVALID PAYLOAD");
+      safePublish("matiz/car", "INVALID PAYLOAD");
     }
   }
 }
@@ -350,21 +369,23 @@ void setup() {
 }
 
 void loop() {
-  if (!mqtt.connected()) {
-    user.println("=== MQTT NOT CONNECTED ===");
-    // Reconnect every 10 seconds
-    uint32_t t = millis();
-    if (t - lastReconnectAttempt > 10000L) {
-      lastReconnectAttempt = t;
-      if (mqttConnect()) {
-        lastReconnectAttempt = 0;
-      }
-    }
-    delay(100);
-    return;
-  }
 
-  mqtt.loop();
+  if(allowExpensiveOps) {
+    if (!mqtt.connected()) {
+      user.println("=== MQTT NOT CONNECTED ===");
+      // Reconnect every 10 seconds
+      uint32_t t = millis();
+      if (t - lastReconnectAttempt > 10000L) {
+        lastReconnectAttempt = t;
+        if (mqttConnect()) {
+          lastReconnectAttempt = 0;
+        }
+      }
+      delay(100);
+      return;
+    }
+    mqtt.loop();
+  }
 
   ownTick();
   BusConnectorTick();

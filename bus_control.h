@@ -19,6 +19,8 @@ typedef enum {
     BUS_STOP_SUCCESS,
     /* Начался период ожидания между ответом и запросом */
     BUS_REQUEST_DELAY_START,
+    /* Закончился период ожидания между ответом и запросом */
+    BUS_REQUEST_DELAY_STOP,
 
 } BusMessage;
 

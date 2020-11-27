@@ -198,14 +198,15 @@ void bus_tick(bool initSignal, bool stopSignal) {
 
           if(responseBuf[5+3] == 0xC1) {
             state = 7;
+            e.msg = BUS_REQUEST_DELAY_START; message(e);
+
             if(!stopping) {
               e.msg = BUS_INIT_SUCCESS; message(e);
               sendingSub = 0;
               
               sendingCmd = subsCount ? subs[sendingSub] : 0;
             }
-            
-            e.msg = BUS_REQUEST_DELAY_START; message(e);
+          
           }
           else {
             state = 0;
@@ -236,6 +237,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
           state = 10;
         else
           state = 8;
+        
+        e.msg = BUS_REQUEST_DELAY_STOP; message(e);
       }
       break;
     case 8:
@@ -275,6 +278,9 @@ void bus_tick(bool initSignal, bool stopSignal) {
         timer = GetTime();
         
         if(responseBufIndex == cmds[sendingCmd].responseLen) {
+          state = 7;
+          e.msg = BUS_REQUEST_DELAY_START; message(e);
+
           if(!stopping) {
             int value = cmds[sendingCmd].convert(responseBuf);
 
@@ -292,8 +298,7 @@ void bus_tick(bool initSignal, bool stopSignal) {
             else
               sendingCmd = 0;
           }
-
-          state = 7;
+         
         }
         
       }
