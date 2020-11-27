@@ -34,7 +34,6 @@ PubSubClient mqtt(client);
 
 unsigned long long timer;
 char state = IDLE;
-char cmd = 0;
 
 HCMD cmdHandler = 0;
 HBusCmd busHandler = 0;
@@ -44,6 +43,24 @@ HBusCmd busHandler = 0;
 #define BusStop() busHandler = BusCmd(BUS_CMD_STOP, BusCallback, busHandler)
 
 static int rpm = 0;
+
+const char* broker = "194.87.95.82";
+uint32_t lastReconnectAttempt = 0;
+
+bool startCmd = false;
+bool stopCmd = false;
+bool sigIgnitionStart = false;
+bool sigBusStopSuccess = false;
+bool sigBusRequestDelayStart = false;
+bool sigBusRequestDelayStop = false;
+bool sigBusInitError = false;
+bool sigBusStopError = false;
+
+bool sigEngineStartOk = false;
+bool sigEngineStopOk = false;
+bool sigEngineStartFail = false;
+bool sigEngineIgnitionOff = false;
+
 
 static const char* busMessages[] = {
   "",                      // 0
@@ -124,69 +141,52 @@ bool BusCallback(HBusCmd callId, BusCommand cmd, BusConnectorResult res, BusEven
 
   if(res == BUS_MESSAGE) {
     if(event.msg == BUS_STOP_SUCCESS) {
-      allowExpensiveOps = true;
-      state = IDLE;
+      sigBusStopSuccess = true;
     }
     else if(event.msg == BUS_REQUEST_DELAY_START) {
-      allowExpensiveOps = true;
+      sigBusRequestDelayStart = true;
     }
     else if(event.msg == BUS_REQUEST_DELAY_STOP) {
-      allowExpensiveOps = false;
+      sigBusRequestDelayStop = true;
     }
   }
   else if(res == BUS_ERROR) {
     if(event.err == BUS_INIT_ERROR) {
-      state = IDLE;
-      EngineStop("password");
+      sigBusInitError = true;
     }
     else if(event.err == BUS_STOP_ERROR) {
-      state = IDLE;
+      sigBusStopError = true;
     }
   }
 
   return false;
 }
 
-#define CAR_WAITING 0
-#define CAR_OK      1
-#define CAR_FAIL    2
-bool carResult;
-
 bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, EngineEvent event) {
   if(res == ENGINE_MESSAGE) {
     user.printf("MSG: %s\n\r", engineMessages[event.msg]);
-    
-    if(event.msg == ENGINE_START_OK) {
-      carResult = CAR_OK;
-      safePublish("matiz/car", "success");
-    }
-    else if(event.msg == ENGINE_STOP_OK) {
-      carResult = CAR_OK;
-      allowExpensiveOps = true;
-      safePublish("matiz/car", "success");
-    }
   }
   else {
     user.printf("ERR: %s\n\r", engineErrors[event.err]);
-
-    if(event.err == ENGINE_START_FAIL) {
-      carResult = CAR_FAIL;
-      safePublish("matiz/car", "error");
-    }
   }
 
   if(res == ENGINE_MESSAGE) {
-    if(event.msg == ENGINE_IGNITION_ON) {
-      if(state == IGNITION)
-        state = BUS_INIT_START;
+    if(event.msg == ENGINE_START_OK) {
+      sigEngineStartOk = true;
+    }
+    else if(event.msg == ENGINE_STOP_OK) {
+      sigEngineStopOk = true;
+    }
+    else if(event.msg == ENGINE_IGNITION_ON) {
+      sigIgnitionStart = true;
     }
     else if(event.msg == ENGINE_IGNITION_OFF) {
-      if(state == IGNITION || state == BUS_INIT_START || state == WAIT_ECU_READY) {
-        state = IDLE;
-      }
-      else if(state == WAIT_ECU_READY || state == BUS_WORKING) {
-        BusStop();
-      }
+      sigEngineIgnitionOff = true;
+    }
+  }
+  else {
+    if(event.err == ENGINE_START_FAIL) {
+      sigEngineStartFail = true;
     }
   }
 
@@ -195,7 +195,6 @@ bool EngineCallback(HCMD callId, EngineCommand cmd, EngineConnectorResult res, E
 
 bool UpdateSensorCallback(HBusSub id, BusSensor sensor, int value) {
   if(sensor == 0) {
-    //user.printf("RPM: %d\n\r", value);
     rpm = value;
   }
 
@@ -227,43 +226,260 @@ int GetRPM() {
 	return rpm;
 }
 
-void ownTick() {
+void ownTick(
+  bool start_cmd, 
+  bool stop_cmd, 
+  bool sig_ignition_started, 
+  bool sig_bus_stop_success,
+  bool sig_bus_request_delay_start,
+  bool sig_bus_request_delay_stop,
+  bool sig_bus_init_error,
+  bool sig_bus_stop_error,
+  bool sig_engine_start_ok,
+  bool sig_engine_stop_ok,
+  bool sig_engine_start_fail,
+  bool sig_engine_ignition_off
+) {
+  // TODO: Пока так
+  startCmd = false; 
+  stopCmd = false;
+  sigIgnitionStart = false;
+  sigBusStopSuccess = false;
+  sigBusRequestDelayStart = false;
+  sigBusRequestDelayStop = false;
+  sigBusInitError = false;
+  sigBusStopError = false;
+  sigEngineStartOk = false;
+  sigEngineStopOk = false;
+  sigEngineStartFail = false;
+  sigEngineIgnitionOff = false;
+
   switch (state)
   {
   case IDLE:
+    if(start_cmd) {
+      state = IGNITION;
+      allowExpensiveOps = false;
+      
+      user.println("Sending start command...");
+      EngineStart("password");
+    }
+    else if(stop_cmd) {
+      user.println("Sending stop command...");
+      EngineStop("password");
+    }
+
+    if(sig_bus_stop_success) {
+      allowExpensiveOps = true;
+    }
+    if(sig_bus_request_delay_start) {
+      allowExpensiveOps = true;
+    }
+    if(sig_bus_request_delay_stop) {
+      allowExpensiveOps = false;
+    }
+    if(sig_bus_init_error) {
+      EngineStop("password");
+    }
+    if(sig_bus_stop_error) {
+      // ??
+    }
+    if(sig_engine_start_ok) {
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_ignition_off) {
+      // ???
+    }
+    if(sig_engine_stop_ok) {
+      allowExpensiveOps = true;
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_start_fail) {
+      safePublish("matiz/car", "error");
+    }
+
     break;
   case IGNITION:
+    if(start_cmd) {
+      user.println("Sending start command...");
+      EngineStart("password");
+    }
+    else if(stop_cmd) {
+      state = IDLE;
+      user.println("Sending stop command...");
+      EngineStop("password");
+    }
+
+    if(sig_ignition_started) {
+      timer = GetTime();
+      state = BUS_INIT_START;
+    }
+    if(sig_bus_stop_success) {
+      allowExpensiveOps = true;
+      state = IDLE;
+    }
+    if(sig_bus_request_delay_start) {
+      allowExpensiveOps = true;
+    }
+    if(sig_bus_request_delay_stop) {
+      allowExpensiveOps = false;
+    }
+    if(sig_bus_init_error) {
+      state = IDLE;
+      EngineStop("password");
+    }
+    if(sig_bus_stop_error) {
+      state = IDLE;
+    }
+    if(sig_engine_start_ok) {
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_ignition_off) {
+      state = IDLE;
+    }
+    if(sig_engine_stop_ok) {
+      allowExpensiveOps = true;
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_start_fail) {
+      safePublish("matiz/car", "error");
+    }
     break;
   case BUS_INIT_START:
-    timer = GetTime();
+    if(start_cmd) {
+      user.println("Sending start command...");
+      EngineStart("password");
+    }
+    else if(stop_cmd) {
+      state = IDLE;
+      user.println("Sending stop command...");
+      EngineStop("password");
+    }
+    
+    if(sig_bus_stop_success) {
+      allowExpensiveOps = true;
+      state = IDLE;
+    }
+    if(sig_bus_request_delay_start) {
+      allowExpensiveOps = true;
+    }
+    if(sig_bus_request_delay_stop) {
+      allowExpensiveOps = false;
+    }
+    if(sig_bus_init_error) {
+      state = IDLE;
+      EngineStop("password");
+    }
+    if(sig_bus_stop_error) {
+      state = IDLE;
+    }
+    if(sig_engine_start_ok) {
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_ignition_off) {
+      state = IDLE;
+    }
+    if(sig_engine_stop_ok) {
+      allowExpensiveOps = true;
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_start_fail) {
+      safePublish("matiz/car", "error");
+    }
+
     state = WAIT_ECU_READY;
     break;
   case WAIT_ECU_READY:
+    if(start_cmd) {
+      user.println("Sending start command...");
+      EngineStart("password");
+    }
+    else if(stop_cmd) {
+      state = IDLE;
+      user.println("Sending stop command...");
+      EngineStop("password");
+    }
+    
+    if(sig_bus_stop_success) {
+      allowExpensiveOps = true;
+      state = IDLE;
+    }
     if(GetTime() - timer > 3000) {
       state = BUS_WORKING;
       BusInit();
     }
+    if(sig_bus_request_delay_start) {
+      allowExpensiveOps = true;
+    }
+    if(sig_bus_request_delay_stop) {
+      allowExpensiveOps = false;
+    }
+    if(sig_bus_init_error) {
+      state = IDLE;
+      EngineStop("password");
+    }
+    if(sig_bus_stop_error) {
+      state = IDLE;
+    }
+    if(sig_engine_start_ok) {
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_ignition_off) {
+      state = IDLE;
+    }
+    if(sig_engine_stop_ok) {
+      allowExpensiveOps = true;
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_start_fail) {
+      safePublish("matiz/car", "error");
+    }
     break;
   case BUS_WORKING:
-    break;
-  }
-
-  static uint32_t loopStart;
-  if(allowExpensiveOps) {
-
-    if(pendingMsgIndex) {
-      pendingMsgIndex--;
-      loopStart = millis();
-      mqtt.publish(pendingMsgs[pendingMsgIndex].topic, pendingMsgs[pendingMsgIndex].message);
-      user.printf("Time Publish: %d\n\r", millis() - loopStart);
+    if(start_cmd) {
+      user.println("Sending start command...");
+      EngineStart("password");
     }
+    else if(stop_cmd) {
+      user.println("Sending stop command...");
+      EngineStop("password");
+    }
+    
+    if(sig_bus_stop_success) {
+      allowExpensiveOps = true;
+      state = IDLE;
+    }
+    if(sig_bus_request_delay_start) {
+      allowExpensiveOps = true;
+    }
+    if(sig_bus_request_delay_stop) {
+      allowExpensiveOps = false;
+    }
+    if(sig_bus_init_error) {
+      state = IDLE;
+      EngineStop("password");
+    }
+    if(sig_bus_stop_error) {
+      state = IDLE;
+    }
+    if(sig_engine_start_ok) {
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_ignition_off) {
+      state = IDLE;
+      BusStop();
+    }
+    if(sig_engine_stop_ok) {
+      allowExpensiveOps = true;
+      safePublish("matiz/car", "success");
+    }
+    if(sig_engine_start_fail) {
+      safePublish("matiz/car", "error");
+    }
+    break;
   }
 
 }
-
-
-const char* broker = "194.87.95.82";
-uint32_t lastReconnectAttempt = 0;
 
 void mqttCallback(char* topic, byte* payload, unsigned int len) {
   user.print("Message arrived [");
@@ -276,21 +492,10 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
   // Only proceed if incoming message's topic matches
   if (strncmp(topic, "matiz/user", len) == 0) {
     if(strncmp((char*)payload, "StartEngine", len) == 0) {
-      carResult = 0;
-      user.println("Sending start command...");
-      if(state == IDLE)
-        state = IGNITION;
-        
-      allowExpensiveOps = false;
-      EngineStart("password");
+      startCmd = true;
     }
     else if(strncmp((char*)payload, "StopEngine", len) == 0) {
-      carResult = 0;
-      user.println("Sending stop command...");
-      if(state == BUS_INIT_START || state == IGNITION) {
-        state = IDLE;
-      }
-      EngineStop("password");
+      stopCmd = true;
     }
     else {
       safePublish("matiz/car", "INVALID PAYLOAD");
@@ -370,7 +575,9 @@ void setup() {
 
 void loop() {
 
+  static uint32_t loopStart;
   if(allowExpensiveOps) {
+
     if (!mqtt.connected()) {
       user.println("=== MQTT NOT CONNECTED ===");
       // Reconnect every 10 seconds
@@ -385,9 +592,30 @@ void loop() {
       return;
     }
     mqtt.loop();
+
+    if(pendingMsgIndex) {
+      pendingMsgIndex--;
+      loopStart = millis();
+      mqtt.publish(pendingMsgs[pendingMsgIndex].topic, pendingMsgs[pendingMsgIndex].message);
+      user.printf("Time Publish: %d\n\r", millis() - loopStart);
+    }
   }
 
-  ownTick();
+  ownTick(
+    startCmd, 
+    stopCmd, 
+    sigIgnitionStart, 
+    sigBusStopSuccess,
+    sigBusRequestDelayStart,
+    sigBusRequestDelayStop,
+    sigBusInitError,
+    sigBusStopError,
+    sigEngineStartOk,
+    sigEngineStopOk,
+    sigEngineStartFail,
+    sigEngineIgnitionOff
+  );
+
   BusConnectorTick();
   EngineConnectorTick();
 }
