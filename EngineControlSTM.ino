@@ -119,7 +119,7 @@ byte pendingMsgIndex = 0;
 
 void safePublish(char* topic, char* msg) {
   if(allowExpensiveOps) {
-    mqtt.publish(topic, msg);
+    mqtt.publish(topic, msg, true);
     return;
   }
   if(pendingMsgIndex == pendingMsgLen) return;
@@ -285,17 +285,17 @@ void ownTick(
       // ??
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "on");
     }
     if(sig_engine_ignition_off) {
       // ???
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "off");
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/car", "error");
+      safePublish("matiz/engine/status", "off");
     }
 
     break;
@@ -332,17 +332,17 @@ void ownTick(
       state = IDLE;
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "on");
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "off");
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/car", "error");
+      safePublish("matiz/engine/status", "off");
     }
     break;
   case BUS_INIT_START:
@@ -374,17 +374,17 @@ void ownTick(
       state = IDLE;
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "on");
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "on");
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/car", "error");
+      safePublish("matiz/engine/status", "off");
     }
 
     state = WAIT_ECU_READY;
@@ -422,17 +422,17 @@ void ownTick(
       state = IDLE;
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "on");
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "off");
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/car", "error");
+      safePublish("matiz/engine/status", "off");
     }
     break;
   case BUS_WORKING:
@@ -463,7 +463,7 @@ void ownTick(
       state = IDLE;
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "on");
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
@@ -471,10 +471,10 @@ void ownTick(
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/car", "success");
+      safePublish("matiz/engine/status", "off");
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/car", "error");
+      safePublish("matiz/engine/status", "off");
     }
     break;
   }
@@ -490,15 +490,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
   
 
   // Only proceed if incoming message's topic matches
-  if (strncmp(topic, "matiz/user", len) == 0) {
-    if(strncmp((char*)payload, "StartEngine", len) == 0) {
+  if (strncmp(topic, "matiz/engine", len) == 0) {
+    if(strncmp((char*)payload, "on", len) == 0) {
       startCmd = true;
     }
-    else if(strncmp((char*)payload, "StopEngine", len) == 0) {
+    else if(strncmp((char*)payload, "off", len) == 0) {
       stopCmd = true;
-    }
-    else {
-      safePublish("matiz/car", "INVALID PAYLOAD");
     }
   }
 }
@@ -515,7 +512,7 @@ boolean mqttConnect() {
     return false;
   }
   user.println(" success");
-  mqtt.subscribe("matiz/user");
+  mqtt.subscribe("matiz/engine");
   return mqtt.connected();
 }
 #define GSM_AUTOBAUD_MIN 9600
@@ -571,6 +568,16 @@ void setup() {
   mqtt.setCallback(mqttCallback);
 
   BusConnectorSubscribe(0, UpdateSensorCallback);
+
+  while(!mqtt.connected()) {
+    user.println("=== MQTT NOT CONNECTED ===");
+    mqttConnect();
+    delay(10000);
+  }
+
+  // TODO: Наверное в будущем стоит проверять, 
+  // работает ли двигатель в данный момент (на случай если в обход МК есть доступ к зажиганию)
+  safePublish("matiz/engine/status", "off");
 }
 
 void loop() {
@@ -596,7 +603,7 @@ void loop() {
     if(pendingMsgIndex) {
       pendingMsgIndex--;
       loopStart = millis();
-      mqtt.publish(pendingMsgs[pendingMsgIndex].topic, pendingMsgs[pendingMsgIndex].message);
+      mqtt.publish(pendingMsgs[pendingMsgIndex].topic, pendingMsgs[pendingMsgIndex].message, true);
       user.printf("Time Publish: %d\n\r", millis() - loopStart);
     }
   }
