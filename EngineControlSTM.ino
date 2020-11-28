@@ -21,14 +21,9 @@ HardwareSerial Serial2(PA3, PA2);
 #define ecu Serial1
 #define gsm Serial2
 
-const char apn[] = "";
-const char gprsUser[] = "";
-const char gprsPass[] = "";
-
 TinyGsm modem(gsm);
 TinyGsmClient client(modem);
 PubSubClient mqtt(client);
-
 
 unsigned long long timer;
 char state = IDLE;
@@ -535,9 +530,8 @@ void setup() {
   }
 
   // GPRS connection parameters are usually set after network registration
-  user.print(F("Connecting to "));
-  user.print(apn);
-  if (!modem.gprsConnect(apn, gprsUser, gprsPass)) {
+  user.print(F("Connecting..."));
+  if (!modem.gprsConnect("", "", "")) {
     user.println(" fail");
     delay(10000);
     return;
