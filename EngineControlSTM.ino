@@ -25,8 +25,6 @@ const char apn[] = "";
 const char gprsUser[] = "";
 const char gprsPass[] = "";
 
-//GSMSimHTTP http(gsm, PB13);
-
 TinyGsm modem(gsm);
 TinyGsmClient client(modem);
 PubSubClient mqtt(client);
@@ -37,15 +35,16 @@ char state = IDLE;
 
 HCMD cmdHandler = 0;
 HBusCmd busHandler = 0;
-#define EngineStart(key) cmdHandler = EngineCmd(CMD_START_ENGINE, key, EngineCallback, cmdHandler)
-#define EngineStop(key) cmdHandler = EngineCmd(CMD_STOP_ENGINE, key, EngineCallback, cmdHandler)
-#define BusInit() busHandler = BusCmd(BUS_CMD_INIT, BusCallback, busHandler)
-#define BusStop() busHandler = BusCmd(BUS_CMD_STOP, BusCallback, busHandler)
 
 static int rpm = 0;
 
 const char* broker = "194.87.95.82";
 uint32_t lastReconnectAttempt = 0;
+
+bool cmdEngineStart = false;
+bool cmdEngineStop = false;
+bool cmdBusInit = false;
+bool cmdBusStop = false;
 
 bool startCmd = false;
 bool stopCmd = false;
@@ -226,6 +225,20 @@ int GetRPM() {
 	return rpm;
 }
 
+void EngineStart() {
+  cmdEngineStart = true;
+}
+void EngineStop() {
+  cmdEngineStop = true;
+}
+
+void BusInit() {
+  cmdBusInit = true;
+}
+void BusStop() {
+  cmdBusStop = true;
+}
+
 void ownTick(
   bool start_cmd, 
   bool stop_cmd, 
@@ -240,20 +253,6 @@ void ownTick(
   bool sig_engine_start_fail,
   bool sig_engine_ignition_off
 ) {
-  // TODO: Пока так
-  startCmd = false; 
-  stopCmd = false;
-  sigIgnitionStart = false;
-  sigBusStopSuccess = false;
-  sigBusRequestDelayStart = false;
-  sigBusRequestDelayStop = false;
-  sigBusInitError = false;
-  sigBusStopError = false;
-  sigEngineStartOk = false;
-  sigEngineStopOk = false;
-  sigEngineStartFail = false;
-  sigEngineIgnitionOff = false;
-
   switch (state)
   {
   case IDLE:
@@ -262,11 +261,11 @@ void ownTick(
       allowExpensiveOps = false;
       
       user.println("Sending start command...");
-      EngineStart("password");
+      EngineStart();
     }
     else if(stop_cmd) {
       user.println("Sending stop command...");
-      EngineStop("password");
+      EngineStop();
     }
 
     if(sig_bus_stop_success || sig_bus_stop_error) {
@@ -279,7 +278,7 @@ void ownTick(
       allowExpensiveOps = false;
     }
     if(sig_bus_init_error) {
-      EngineStop("password");
+      EngineStop();
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -299,12 +298,12 @@ void ownTick(
   case IGNITION:
     if(start_cmd) {
       user.println("Sending start command...");
-      EngineStart("password");
+      EngineStart();
     }
     else if(stop_cmd) {
       state = IDLE;
       user.println("Sending stop command...");
-      EngineStop("password");
+      EngineStop();
     }
 
     if(sig_ignition_started) {
@@ -323,7 +322,7 @@ void ownTick(
     }
     if(sig_bus_init_error) {
       state = IDLE;
-      EngineStop("password");
+      EngineStop();
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -342,12 +341,12 @@ void ownTick(
   case BUS_INIT_START:
     if(start_cmd) {
       user.println("Sending start command...");
-      EngineStart("password");
+      EngineStart();
     }
     else if(stop_cmd) {
       state = IDLE;
       user.println("Sending stop command...");
-      EngineStop("password");
+      EngineStop();
     }
     
     if(sig_bus_stop_success || sig_bus_stop_error) {
@@ -362,7 +361,7 @@ void ownTick(
     }
     if(sig_bus_init_error) {
       state = IDLE;
-      EngineStop("password");
+      EngineStop();
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -383,12 +382,12 @@ void ownTick(
   case WAIT_ECU_READY:
     if(start_cmd) {
       user.println("Sending start command...");
-      EngineStart("password");
+      EngineStart();
     }
     else if(stop_cmd) {
       state = IDLE;
       user.println("Sending stop command...");
-      EngineStop("password");
+      EngineStop();
     }
     
     if(sig_bus_stop_success || sig_bus_stop_error) {
@@ -407,7 +406,7 @@ void ownTick(
     }
     if(sig_bus_init_error) {
       state = IDLE;
-      EngineStop("password");
+      EngineStop();
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -426,11 +425,11 @@ void ownTick(
   case BUS_WORKING:
     if(start_cmd) {
       user.println("Sending start command...");
-      EngineStart("password");
+      EngineStart();
     }
     else if(stop_cmd) {
       user.println("Sending stop command...");
-      EngineStop("password");
+      EngineStop();
     }
     
     if(sig_bus_stop_success || sig_bus_stop_error) {
@@ -445,7 +444,7 @@ void ownTick(
     }
     if(sig_bus_init_error) {
       state = IDLE;
-      EngineStop("password");
+      EngineStop();
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -607,7 +606,37 @@ void loop() {
     sigEngineStartFail,
     sigEngineIgnitionOff
   );
+  startCmd = false; 
+  stopCmd = false;
+  sigIgnitionStart = false;
+  sigBusStopSuccess = false;
+  sigBusRequestDelayStart = false;
+  sigBusRequestDelayStop = false;
+  sigBusInitError = false;
+  sigBusStopError = false;
+  sigEngineStartOk = false;
+  sigEngineStopOk = false;
+  sigEngineStartFail = false;
+  sigEngineIgnitionOff = false;
 
-  BusConnectorTick();
+  if(cmdEngineStart) {
+    cmdHandler = EngineCmd(CMD_START_ENGINE, "password", EngineCallback, cmdHandler);
+    cmdEngineStart = false;
+  }
+  if(cmdEngineStop) {
+    cmdHandler = EngineCmd(CMD_STOP_ENGINE, "password", EngineCallback, cmdHandler);
+    cmdEngineStop = false;
+  }
+
+  if(cmdBusInit) {
+    busHandler = BusCmd(BUS_CMD_INIT, BusCallback, busHandler);
+    cmdBusInit = false;
+  }
+  if(cmdBusStop) {
+    busHandler = BusCmd(BUS_CMD_STOP, BusCallback, busHandler);
+    cmdBusStop = false;
+  }
+
   EngineConnectorTick();
+  BusConnectorTick();
 }
