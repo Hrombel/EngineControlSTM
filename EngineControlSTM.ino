@@ -269,7 +269,7 @@ void ownTick(
       EngineStop("password");
     }
 
-    if(sig_bus_stop_success) {
+    if(sig_bus_stop_success || sig_bus_stop_error) {
       allowExpensiveOps = true;
     }
     if(sig_bus_request_delay_start) {
@@ -280,9 +280,6 @@ void ownTick(
     }
     if(sig_bus_init_error) {
       EngineStop("password");
-    }
-    if(sig_bus_stop_error) {
-      // ??
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -314,7 +311,7 @@ void ownTick(
       timer = GetTime();
       state = BUS_INIT_START;
     }
-    if(sig_bus_stop_success) {
+    if(sig_bus_stop_success || sig_bus_stop_error) {
       allowExpensiveOps = true;
       state = IDLE;
     }
@@ -327,9 +324,6 @@ void ownTick(
     if(sig_bus_init_error) {
       state = IDLE;
       EngineStop("password");
-    }
-    if(sig_bus_stop_error) {
-      state = IDLE;
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -356,7 +350,7 @@ void ownTick(
       EngineStop("password");
     }
     
-    if(sig_bus_stop_success) {
+    if(sig_bus_stop_success || sig_bus_stop_error) {
       allowExpensiveOps = true;
       state = IDLE;
     }
@@ -369,9 +363,6 @@ void ownTick(
     if(sig_bus_init_error) {
       state = IDLE;
       EngineStop("password");
-    }
-    if(sig_bus_stop_error) {
-      state = IDLE;
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -400,7 +391,7 @@ void ownTick(
       EngineStop("password");
     }
     
-    if(sig_bus_stop_success) {
+    if(sig_bus_stop_success || sig_bus_stop_error) {
       allowExpensiveOps = true;
       state = IDLE;
     }
@@ -417,9 +408,6 @@ void ownTick(
     if(sig_bus_init_error) {
       state = IDLE;
       EngineStop("password");
-    }
-    if(sig_bus_stop_error) {
-      state = IDLE;
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");
@@ -445,7 +433,7 @@ void ownTick(
       EngineStop("password");
     }
     
-    if(sig_bus_stop_success) {
+    if(sig_bus_stop_success || sig_bus_stop_error) {
       allowExpensiveOps = true;
       state = IDLE;
     }
@@ -458,9 +446,6 @@ void ownTick(
     if(sig_bus_init_error) {
       state = IDLE;
       EngineStop("password");
-    }
-    if(sig_bus_stop_error) {
-      state = IDLE;
     }
     if(sig_engine_start_ok) {
       safePublish("matiz/engine/status", "on");

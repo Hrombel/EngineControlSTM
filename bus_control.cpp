@@ -255,6 +255,7 @@ void bus_tick(bool initSignal, bool stopSignal) {
         if(sendingByte == 6) {
           responseBufIndex = 0;
           state = 9;
+          e.msg = BUS_REQUEST_DELAY_START; message(e);
         }
       }
       break;
@@ -272,6 +273,8 @@ void bus_tick(bool initSignal, bool stopSignal) {
           state = 10;
         else
           state = 8;
+        
+        e.msg = BUS_REQUEST_DELAY_STOP; message(e);
       }
       else if(UARTBytesAvailable()) {
         responseBuf[responseBufIndex++] = UARTReadByte();
