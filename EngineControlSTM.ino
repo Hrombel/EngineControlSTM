@@ -498,13 +498,16 @@ boolean mqttConnect() {
 #define GSM_AUTOBAUD_MAX 115200
 
 void setup() {
-  pinMode(EN_PIN, OUTPUT);
-  digitalWrite(EN_PIN, HIGH );
-
-  digitalWrite(STARTER_PIN, LOW);
   pinMode(STARTER_PIN, OUTPUT);
-  digitalWrite(IGNITION_PIN, LOW);
+  digitalWrite(STARTER_PIN, LOW);
+
   pinMode(IGNITION_PIN, OUTPUT);
+  digitalWrite(IGNITION_PIN, LOW);
+  
+  pinMode(KLINE_EN_PIN, OUTPUT);
+  digitalWrite(KLINE_EN_PIN, HIGH );
+
+  
 
   user.begin(115200);
   user.println("Wait...");

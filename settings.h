@@ -32,10 +32,10 @@
 
 
 
-#define EN_PIN PB12
+#define KLINE_EN_PIN PA15
 #define TX_PIN PA9
-#define STARTER_PIN PB14
-#define IGNITION_PIN PB15
+#define STARTER_PIN PB0
+#define IGNITION_PIN PB1
 
 #define TxSetOutput() pinMode(TX_PIN, OUTPUT)
 #define TxWriteHigh() digitalWrite(TX_PIN, HIGH)
