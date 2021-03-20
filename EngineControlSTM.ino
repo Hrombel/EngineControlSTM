@@ -33,7 +33,7 @@ HBusCmd busHandler = 0;
 
 static int rpm = 0;
 
-const char* broker = "194.87.95.82";
+const char* broker = "135.181.202.244";
 uint32_t lastReconnectAttempt = 0;
 
 bool cmdEngineStart = false;
