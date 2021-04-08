@@ -32,7 +32,7 @@
 
 
 
-#define KLINE_EN_PIN PA15
+#define KLINE_EN_PIN PA12
 #define TX_PIN PA9
 #define STARTER_PIN PB0
 #define IGNITION_PIN PB1
