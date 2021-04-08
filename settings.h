@@ -48,7 +48,7 @@
 #if RX_BUFFER_SIZE > 64
 #define InitUART() Serial1.begin(10400); Serial1.setRxBufferSize(RX_BUFFER_SIZE - 64)
 #else
-#define InitUART() Serial1.begin(19200)
+#define InitUART() Serial1.begin(10400)
 #endif
 
 void log(uint8_t);
