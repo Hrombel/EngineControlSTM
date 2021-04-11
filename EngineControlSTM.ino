@@ -1,6 +1,8 @@
 #define TINY_GSM_MODEM_SIM800
 #include <TinyGsmClient.h>
 #include <PubSubClient.h>
+#include <TinyGPS++.h>
+#include <STM32RTC.h>
 
 #include "settings.h"
 #include "engine_connector.h"
@@ -10,6 +12,7 @@
 
 // HardwareSerial Serial1(PA10, PA9); // Already defined
 HardwareSerial Serial2(PA3, PA2);
+HardwareSerial Serial3(PB11, PB10);
 
 #define IDLE            0
 #define IGNITION        1
@@ -20,7 +23,10 @@ HardwareSerial Serial2(PA3, PA2);
 #define user Serial
 #define ecu Serial1
 #define gsm Serial2
+#define SerialGPS Serial3
 
+STM32RTC& rtc = STM32RTC::getInstance();
+TinyGPSPlus gps;
 TinyGsm modem(gsm);
 TinyGsmClient client(modem);
 PubSubClient mqtt(client);
@@ -32,8 +38,8 @@ HCMD cmdHandler = 0;
 HBusCmd busHandler = 0;
 
 static int rpm = 0;
+static char gpsBuf[30];
 
-const char* broker = "135.181.202.244";
 uint32_t lastReconnectAttempt = 0;
 
 bool cmdEngineStart = false;
@@ -55,6 +61,7 @@ bool sigEngineStopOk = false;
 bool sigEngineStartFail = false;
 bool sigEngineIgnitionOff = false;
 
+bool rtcUpdateNeeded = false;
 
 static const char* busMessages[] = {
   "",                      // 0
@@ -98,12 +105,8 @@ static const char* engineErrors[] = {
   "Engine already started",                       // 10
 };
 
-void log(uint8_t v) {
-  user.printf("%x ", v);
-}
-
 bool allowExpensiveOps = true;
-#define pendingMsgLen 5
+#define pendingMsgLen 30
 struct {
   char topic[20];
   char message[50];
@@ -111,9 +114,9 @@ struct {
 pendingMsgs[pendingMsgLen];
 byte pendingMsgIndex = 0;
 
-void safePublish(char* topic, char* msg) {
+void safePublish(const char* topic, const char* msg, bool retain) {
   if(allowExpensiveOps) {
-    mqtt.publish(topic, msg, true);
+    mqtt.publish(topic, msg, retain);
     return;
   }
   if(pendingMsgIndex == pendingMsgLen) return;
@@ -276,17 +279,17 @@ void ownTick(
       EngineStop();
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/engine/status", "on");
+      safePublish("matiz/engine/status", "on", true);
     }
     if(sig_engine_ignition_off) {
       // ???
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
 
     break;
@@ -320,17 +323,17 @@ void ownTick(
       EngineStop();
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/engine/status", "on");
+      safePublish("matiz/engine/status", "on", true);
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
     break;
   case BUS_INIT_START:
@@ -359,17 +362,17 @@ void ownTick(
       EngineStop();
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/engine/status", "on");
+      safePublish("matiz/engine/status", "on", true);
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/engine/status", "on");
+      safePublish("matiz/engine/status", "on", true);
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
 
     state = WAIT_ECU_READY;
@@ -404,17 +407,17 @@ void ownTick(
       EngineStop();
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/engine/status", "on");
+      safePublish("matiz/engine/status", "on", true);
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
     break;
   case BUS_WORKING:
@@ -442,7 +445,7 @@ void ownTick(
       EngineStop();
     }
     if(sig_engine_start_ok) {
-      safePublish("matiz/engine/status", "on");
+      safePublish("matiz/engine/status", "on", true);
     }
     if(sig_engine_ignition_off) {
       state = IDLE;
@@ -450,10 +453,10 @@ void ownTick(
     }
     if(sig_engine_stop_ok) {
       allowExpensiveOps = true;
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
     if(sig_engine_start_fail) {
-      safePublish("matiz/engine/status", "off");
+      safePublish("matiz/engine/status", "off", true);
     }
     break;
   }
@@ -479,23 +482,109 @@ void mqttCallback(char* topic, byte* payload, unsigned int len) {
   }
 }
 
-boolean mqttConnect() {
+bool mqttConnect() {
+  if(mqtt.connected()) return true;
+
+  mqtt.setServer(BROKER_IP, BROKER_PORT);
+  mqtt.setCallback(mqttCallback);
+
   user.print("Connecting to ");
-  user.print(broker);
+  user.print(BROKER_IP);
 
   // Connect to MQTT Broker
-  boolean status = mqtt.connect("Matiz", "hrombel", "p2r0o1g6ears");
-
-  if (status == false) {
+  if(!mqtt.connect(MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS)) {
     user.println(" fail");
     return false;
   }
-  user.println(" success");
-  mqtt.subscribe("matiz/engine");
+  
+  if(!mqtt.subscribe("matiz/engine"))
+    return false;
+
   return mqtt.connected();
 }
-#define GSM_AUTOBAUD_MIN 9600
-#define GSM_AUTOBAUD_MAX 115200
+
+bool connectModem(bool firstInit = false) {
+
+  if(firstInit) { // Это долгая операция, и она не всегда нужна
+    auto rate = TinyGsmAutoBaud(gsm, 9600, 115200);
+    if(!rate) return false;
+    if(rate != 115200) {
+      modem.setBaud(115200);
+      gsm.end();
+      delay(100);
+      gsm.begin(115200);
+      modem.init();
+    }
+  }
+
+  if(firstInit) {
+    while(!modem.isNetworkConnected()) {
+      delay(100);
+    }
+  }
+  else {
+    if(!modem.isNetworkConnected())
+      return false;
+  }
+  
+
+  if (!modem.isGprsConnected()) {
+    user.print(F("Connecting..."));
+    if (!modem.gprsConnect("", "", "")) {
+      user.println(" fail");
+      return false;
+    }
+
+  }
+  
+  user.println(" success");
+
+  return true;
+}
+
+bool rtcRefresh() {
+  int year, month, day, hours, minutes, seconds;
+  float timezone;
+  if(!modem.getNetworkTime(&year, &month, &day, &hours, &minutes, &seconds, &timezone))
+    return false;
+  
+  rtc.setDate(day, month, year - 2000);
+  rtc.setTime(hours, minutes, seconds);
+  return true;
+}
+
+void rtcInterrupt(void* data) {
+  UNUSED(data);
+  rtcUpdateNeeded = true;
+}
+
+bool connectAll() {
+
+  SerialGPS.begin(9600);
+
+  if(!connectModem(true)) {
+    modem.restart();
+    delay(1000);
+    return false;
+  }
+
+  rtc.setClockSource(STM32RTC::LSE_CLOCK);
+  rtc.begin();
+
+  if(!rtcRefresh())
+    return false;
+
+  rtc.attachInterrupt(rtcInterrupt, &modem);
+  rtc.setAlarmHours(0);
+  rtc.enableAlarm(rtc.MATCH_HHMMSS);
+
+  if(!mqttConnect()) {
+    delay(2000);
+    return false;
+  }
+
+  return true;
+}
 
 void setup() {
   pinMode(STARTER_PIN, OUTPUT);
@@ -505,87 +594,61 @@ void setup() {
   digitalWrite(IGNITION_PIN, LOW);
   
   pinMode(KLINE_EN_PIN, OUTPUT);
-  digitalWrite(KLINE_EN_PIN, HIGH );
-
-  
+  digitalWrite(KLINE_EN_PIN, HIGH);
 
   user.begin(115200);
   user.println("Wait...");
-  TinyGsmAutoBaud(gsm, GSM_AUTOBAUD_MIN, GSM_AUTOBAUD_MAX);
-  delay(6000);
-  user.println("Initializing modem...");
-  modem.restart();
 
-  String modemInfo = modem.getModemInfo();
-  user.print("Modem Info: ");
-  user.println(modemInfo);
-
-  user.print("Waiting for network...");
-  if (!modem.waitForNetwork()) {
-    user.println(" fail");
-    delay(10000);
-    return;
-  }
-  user.println(" success");
-
-  if (modem.isNetworkConnected()) {
-    user.println("Network connected");
-  }
-
-  // GPRS connection parameters are usually set after network registration
-  user.print(F("Connecting..."));
-  if (!modem.gprsConnect("", "", "")) {
-    user.println(" fail");
-    delay(10000);
-    return;
-  }
-  user.println(" success");
-
-  if (modem.isGprsConnected()) {
-    user.println("GPRS connected");
-  }
-
-  mqtt.setServer(broker, 1883);
-  mqtt.setCallback(mqttCallback);
+  delay(300); // Ждем, пока модем включается
+  
+  while(!connectAll());
 
   BusConnectorSubscribe(0, UpdateSensorCallback);
 
-  while(!mqtt.connected()) {
-    user.println("=== MQTT NOT CONNECTED ===");
-    mqttConnect();
-    delay(10000);
-  }
-
   // TODO: Наверное в будущем стоит проверять, 
   // работает ли двигатель в данный момент (на случай если в обход МК есть доступ к зажиганию)
-  safePublish("matiz/engine/status", "off");
+  safePublish("matiz/engine/status", "off", true);
+
+  sprintf(gpsBuf, "REBOOT %d.%d.%d %d:%d:%d",
+    rtc.getDay(), rtc.getMonth(), rtc.getYear(),
+    rtc.getHours(), rtc.getMinutes(), rtc.getSeconds()
+  );
+
+  safePublish("matiz/board/event", gpsBuf, true);
 }
 
 void loop() {
-
   static uint32_t loopStart;
   if(allowExpensiveOps) {
 
     if (!mqtt.connected()) {
-      user.println("=== MQTT NOT CONNECTED ===");
-      // Reconnect every 10 seconds
-      uint32_t t = millis();
-      if (t - lastReconnectAttempt > 10000L) {
-        lastReconnectAttempt = t;
-        if (mqttConnect()) {
-          lastReconnectAttempt = 0;
-        }
-      }
-      delay(100);
-      return;
+      if(modem.isGprsConnected())
+        mqttConnect();
+      else
+        connectModem();
     }
-    mqtt.loop();
+    
+    if(mqtt.connected()) {
 
-    if(pendingMsgIndex) {
-      pendingMsgIndex--;
-      loopStart = millis();
-      mqtt.publish(pendingMsgs[pendingMsgIndex].topic, pendingMsgs[pendingMsgIndex].message, true);
-      user.printf("Time Publish: %d\n\r", millis() - loopStart);
+      if(rtcUpdateNeeded && rtcRefresh()) {
+        rtcUpdateNeeded = false;
+        
+        sprintf(gpsBuf, "RTC-R %d.%d.%d %d:%d:%d",
+          rtc.getDay(), rtc.getMonth(), rtc.getYear(),
+          rtc.getHours(), rtc.getMinutes(), rtc.getSeconds()
+        );
+
+        safePublish("matiz/board/event", gpsBuf, true);
+      }
+
+      if(pendingMsgIndex) {
+        pendingMsgIndex--;
+        loopStart = millis();
+        mqtt.publish(pendingMsgs[pendingMsgIndex].topic, pendingMsgs[pendingMsgIndex].message, true);
+        user.printf("Time Publish: %d\n\r", millis() - loopStart);
+      }
+      
+      
     }
   }
 
@@ -636,4 +699,30 @@ void loop() {
 
   EngineConnectorTick();
   BusConnectorTick();
+  mqtt.loop();
+
+
+  while(SerialGPS.available() > 0) {
+    if(gps.encode(SerialGPS.read())) {
+      static uint32_t gpsSent = 0;
+      static char lat[11];
+      static char lng[11];
+
+      if(millis() - gpsSent >= 5000) {
+        if(gps.location.isValid()) {
+          dtostrf(gps.location.lat(), 10, 6, lat);
+          dtostrf(gps.location.lng(), 10, 6, lng);
+
+          sprintf(gpsBuf, "%s,%s %d.%d.%d %d:%d:%d",
+            lat, lng, 
+            rtc.getDay(), rtc.getMonth(), rtc.getYear(),
+            rtc.getHours(), rtc.getMinutes(), rtc.getSeconds()
+          );
+          safePublish("matiz/gps/pos", gpsBuf, true);
+        }
+      
+        gpsSent = millis();
+      }
+    }
+  }
 }

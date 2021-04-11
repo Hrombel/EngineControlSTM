@@ -339,7 +339,7 @@ void bus_tick(bool initSignal, bool stopSignal) {
       }
       else if(UARTBytesAvailable()) {
         uint8_t v = UARTReadByte();
-        log(v);
+        
         responseBuf[responseBufIndex++] = v;
         if(responseBufIndex == 12) {
           timer = GetTime();

@@ -25,6 +25,12 @@
         "istream": "cpp",
         "*.tcc": "cpp",
         "string_view": "cpp",
-        "xlocale": "cpp"
+        "xlocale": "cpp",
+        "cmath": "cpp",
+        "*.tpp": "cpp",
+        "exception": "cpp",
+        "optional": "cpp",
+        "new": "cpp",
+        "ostream": "cpp"
     }
 }

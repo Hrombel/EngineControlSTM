@@ -30,7 +30,11 @@
 /* Размер буфера для приема данных по UART */
 #define RX_BUFFER_SIZE      32
 
-
+#define BROKER_IP "135.181.202.244"
+#define BROKER_PORT 1883
+#define MQTT_CLIENT_ID "Matiz"
+#define MQTT_USER "hrombel"
+#define MQTT_PASS "p2r0o1g6ears"
 
 #define KLINE_EN_PIN PA12
 #define TX_PIN PA9
@@ -50,7 +54,5 @@
 #else
 #define InitUART() Serial1.begin(10400)
 #endif
-
-void log(uint8_t);
 
 #endif /* INC_SETTINGS_H_ */
